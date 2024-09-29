@@ -1,7 +1,7 @@
 <script lang="ts">
   import { DarkMode } from "flowbite-svelte";
   let serverIp = ""; // IP address input
-  let serverFrontendPort = "5173"; // Port where the desktop app's frontend is served
+  let serverFrontendPort: number; // Port where the desktop app's frontend is served
   let showIframe = false; // Tracks if the iframe should be shown
 
   // Function to handle connecting to the specified IP
@@ -9,6 +9,11 @@
     if (serverIp) {
       showIframe = true; // Show the iframe when an IP is entered
     }
+  }
+
+  function presetsHandler(ip: string, port: number) {
+    serverIp = ip;
+    serverFrontendPort = port;
   }
 </script>
 
@@ -23,15 +28,23 @@
       placeholder="Enter WebSocket Server IP"
       class="input-ip"
     />
+    <input
+      type="number"
+      bind:value={serverFrontendPort}
+      placeholder="Enter Frontend Port"
+      class="input-ip"
+    />
     <button on:click={connectToIp} id="connect-button">Connect</button>
     <div class="recommended-ip-buttons">
       <h3>Recommended IP's</h3>
-      <button on:click={() => (serverIp = "10.0.23.245")}>10.0.23.245</button>
-      <button on:click={() => (serverIp = "192.168.0.1")}>192.168.0.1</button>
+      <button on:click={() => presetsHandler("10.0.23.245", 5173)}
+        >10.0.23.245</button
+      >
+      <button on:click={() => presetsHandler("192.168.0.1", 5173)}
+        >192.168.0.1</button
+      >
     </div>
   {:else}
-    <!-- If the IP is entered, load it in an iframe -->
-    <h1>Connected to Local Network</h1>
     <div class="iframe-container">
       <iframe
         src={`http://${serverIp}:${serverFrontendPort}`}
@@ -56,6 +69,7 @@
       font-size: 2rem;
     }
   }
+
   .recommended-ip-buttons {
     display: flex;
     flex-direction: column;
@@ -67,7 +81,8 @@
     border-radius: 0.5rem;
   }
   .iframe-container {
-    width: 100%;
+    width: 100vw;
+    height: 100vh;
   }
   #connect-button {
     padding: 0.5rem 1rem;
