@@ -9,8 +9,17 @@
   let serverIp = "10.0.23.245"; // Default IP address
   let serverPort = "8080"; // WebSocket port
 
-  // Dynamically determine WebSocket protocol based on environment
+  // Check if the IP address is on a local network
+  function isLocalIp(ip: string): boolean {
+    const localIPRegex = /^(10\.|192\.168\.)/; // Local IP address ranges
+    return localIPRegex.test(ip);
+  }
+
+  // Dynamically determine WebSocket protocol based on IP
   function getWebSocketProtocol(): string {
+    if (isLocalIp(serverIp)) {
+      return "ws"; // Force ws for local IPs
+    }
     return window.location.protocol === "https:" ? "wss" : "ws";
   }
 
