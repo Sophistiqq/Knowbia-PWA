@@ -1,36 +1,45 @@
 <script lang="ts">
-  let serverIp = "10.0.23.245"; // Default IP address (desktop app)
-  let serverFrontendPort = "5173"; // Frontend port for the offline mode (pseudo offline mode)
-  let connectionStatus = "Not connected"; // Default status
+  let serverIp = "10.0.23.245"; // Default IP address of the desktop app
+  let serverFrontendPort = "5173"; // Port where the desktop app's frontend is served
+  let isConnectedToLocalNetwork = false; // Tracks if the app is connected to the local network
+  let localNetworkRegex = /^10\.0\./; // Regex pattern for checking if IP is in the local network range
+  let offlineUrl = `http://${serverIp}:${serverFrontendPort}`; // URL of the offline local network app
 
-  // Check if the app is in Offline Mode
-  let isOfflineMode = false;
+  // Function to check if the app is connected to the local network
+  function checkLocalNetwork() {
+    const hostname = window.location.hostname;
 
-  // Function to open Offline Mode (pseudo)
-  function openOfflineMode() {
-    isOfflineMode = true;
-    window.location.href = `http://${serverIp}:${serverFrontendPort}`;
+    // If hostname matches local network (10.0.x.x), load the iframe
+    if (localNetworkRegex.test(hostname)) {
+      isConnectedToLocalNetwork = true;
+    } else {
+      isConnectedToLocalNetwork = false;
+    }
   }
+
+  // Call the check function on load
+  checkLocalNetwork();
 </script>
 
 <div class="container">
-  <h1>Student Assessment App</h1>
+  <!-- Display based on whether the user is connected to the local network or not -->
+  {#if isConnectedToLocalNetwork}
+    <h1>Connected to Local Network</h1>
+    <p>Loading app...</p>
 
-  <!-- Display protocol and server IP -->
-  <div class="display-server-info">
-    <p>Frontend Server IP: {serverIp}</p>
-    <p>Frontend Server Port: {serverFrontendPort}</p>
-  </div>
-
-  <!-- Option to open offline mode -->
-  <button on:click={openOfflineMode}>Open Offline Mode</button>
-  <p class="status">{connectionStatus}</p>
-
-  <!-- Check if we're in offline mode and show instructions -->
-  {#if isOfflineMode}
-    <p>You are now operating in Offline Mode. Redirecting to local frontend...</p>
+    <!-- Automatically load the iframe if connected to the local network -->
+    <div class="iframe-container">
+      <iframe
+        src={offlineUrl}
+        title="Offline Mode"
+        width="100%"
+        height="100%"
+        frameborder="0"
+      ></iframe>
+    </div>
   {:else}
-    <p>Click the button above to access the local network frontend and start the assessment.</p>
+    <h1>Offline Mode</h1>
+    <p>You are not connected to the local network.</p>
   {/if}
 </div>
 
@@ -40,12 +49,13 @@
     font-family: Arial, sans-serif;
   }
 
-  .status {
-    font-weight: bold;
-    color: green;
+  .iframe-container {
+    width: 100%;
+    height: 80vh; /* Adjust this height as needed */
+    margin-top: 1rem;
   }
 
-  .display-server-info {
-    margin-bottom: 1rem;
+  iframe {
+    border: none;
   }
 </style>
