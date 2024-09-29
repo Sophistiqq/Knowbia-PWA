@@ -12,6 +12,7 @@
 }
 
 body {
+  color: var(--text);
   &::before {
     content: "";
     position: fixed;

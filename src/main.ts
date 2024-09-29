@@ -1,4 +1,5 @@
 import './assets/main.css'
+import './assets/tailwind.css'
 import '@fontsource/montserrat'
 import App from './App.svelte'
 
