@@ -48,6 +48,10 @@
 </script>
 
 <div class="container">
+  <div class="display-protocol-and-ip-address">
+    <p>WebSocket Protocol: {getWebSocketProtocol()}</p>
+    <p>WebSocket Server IP: {serverIp}</p>
+  </div>
   <h1>Student WebSocket Client</h1>
   <input type="text" bind:value={serverIp} placeholder="Enter WebSocket Server IP" />
   <button on:click={connectWebSocket}>Connect</button>
