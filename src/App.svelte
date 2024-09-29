@@ -1,83 +1,36 @@
 <script lang="ts">
-  let socket: WebSocket;
-  let receivedAssessment: {
-    title: any;
-    description: any;
-    questions: any;
-  } | null = null;
-  let connectionStatus = "Connecting...";
-  let serverIp = "10.0.23.245"; // Default IP address
-  let serverPort = "8080"; // WebSocket port
+  let serverIp = "10.0.23.245"; // Default IP address (desktop app)
+  let serverFrontendPort = "5173"; // Frontend port for the offline mode (pseudo offline mode)
+  let connectionStatus = "Not connected"; // Default status
 
-  // Check if the IP address is on a local network
-  function isLocalIp(ip: string): boolean {
-    const localIPRegex = /^(10\.|192\.168\.)/; // Local IP address ranges
-    return localIPRegex.test(ip);
-  }
+  // Check if the app is in Offline Mode
+  let isOfflineMode = false;
 
-  // Dynamically determine WebSocket protocol based on IP
-  function getWebSocketProtocol(): string {
-    if (isLocalIp(serverIp)) {
-      return "ws"; // Force ws for local IPs
-    }
-    return window.location.protocol === "https:" ? "wss" : "ws";
-  }
-
-  // Connect to the WebSocket server
-  function connectWebSocket() {
-    const protocol = getWebSocketProtocol();
-    // Create WebSocket connection
-    socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}`);
-
-    socket.onopen = () => {
-      connectionStatus = "Connected";
-      console.log("Connected to WebSocket server");
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const assessment = JSON.parse(event.data);
-        receivedAssessment = assessment;
-        console.log("Received assessment:", assessment);
-      } catch (error) {
-        console.error("Failed to parse message:", event.data);
-      }
-    };
-
-    socket.onclose = () => {
-      connectionStatus = "Disconnected";
-      console.log("Disconnected from WebSocket server");
-    };
-
-    socket.onerror = (error) => {
-      connectionStatus = "Error occurred";
-      console.error("WebSocket error:", error);
-    };
+  // Function to open Offline Mode (pseudo)
+  function openOfflineMode() {
+    isOfflineMode = true;
+    window.location.href = `http://${serverIp}:${serverFrontendPort}`;
   }
 </script>
 
 <div class="container">
-  <div class="display-protocol-and-ip-address">
-    <p>WebSocket Protocol: {getWebSocketProtocol()}</p>
-    <p>WebSocket Server IP: {serverIp}</p>
+  <h1>Student Assessment App</h1>
+
+  <!-- Display protocol and server IP -->
+  <div class="display-server-info">
+    <p>Frontend Server IP: {serverIp}</p>
+    <p>Frontend Server Port: {serverFrontendPort}</p>
   </div>
-  <h1>Student WebSocket Client</h1>
-  <input type="text" bind:value={serverIp} placeholder="Enter WebSocket Server IP" />
-  <button on:click={connectWebSocket}>Connect</button>
+
+  <!-- Option to open offline mode -->
+  <button on:click={openOfflineMode}>Open Offline Mode</button>
   <p class="status">{connectionStatus}</p>
 
-  {#if receivedAssessment}
-    <h2>Assessment Received:</h2>
-    <h3>{receivedAssessment.title}</h3>
-    <p>{@html receivedAssessment.description}</p>
-
-    <ul>
-      {#each receivedAssessment.questions as question (question.id)}
-        <li><strong>{question.type}</strong>: {question.content}</li>
-      {/each}
-    </ul>
+  <!-- Check if we're in offline mode and show instructions -->
+  {#if isOfflineMode}
+    <p>You are now operating in Offline Mode. Redirecting to local frontend...</p>
   {:else}
-    <p>No assessment received yet.</p>
+    <p>Click the button above to access the local network frontend and start the assessment.</p>
   {/if}
 </div>
 
@@ -92,7 +45,7 @@
     color: green;
   }
 
-  .disconnected {
-    color: red;
+  .display-server-info {
+    margin-bottom: 1rem;
   }
 </style>
