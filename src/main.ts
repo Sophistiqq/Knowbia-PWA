@@ -1,19 +1,13 @@
 import './assets/main.css'
 import '@fontsource/montserrat'
 import App from './App.svelte'
-import { setupInstallPrompt } from './scripts/install'
 
 
-const appElement = document.getElementById('app');
-if (!appElement) {
-  throw new Error("App element not found");
-}
 
 const app = new App({
-  target: appElement
+  target: document.body
 })
 
-setupInstallPrompt()
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
