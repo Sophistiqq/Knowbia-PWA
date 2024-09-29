@@ -19,8 +19,8 @@ export default defineConfig({
       name: 'Knowbia-PWA',
       short_name: 'Knowbia-PWA',
       description: 'Distribute',
-      display: 'standalone',
       theme_color: '#ffffff',
+      display: 'fullscreen'
     },
 
     injectManifest: {
