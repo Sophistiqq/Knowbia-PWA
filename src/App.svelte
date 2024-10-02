@@ -5,18 +5,20 @@
     ArrowLeftToBracketOutline,
     CheckCircleOutline,
     CloseCircleOutline,
+    CloseOutline,
   } from "flowbite-svelte-icons";
-  import { CloseOutline } from "flowbite-svelte-icons";
+  import AssessmentsPage from "./pages/AssessmentsPage.svelte";
 
   let socket: WebSocket;
   let receivedAssessment: {
-    title: any;
-    description: any;
-    questions: any;
+    timeLimit: number;
+    title: string;
+    description: string;
+    questions: any[];
   } | null = null;
   let connectionStatus = "Connecting...";
   let serverIp = "10.0.23.245"; // Default IP address
-  let serverPort = "8080"; // WebSocket port
+  const serverPort = "8080"; // WebSocket port
 
   // Registration form fields
   let studentNumber = "";
@@ -29,45 +31,184 @@
 
   let showRegisterForm = false;
   let registrationFeedback = "";
+  let loginFeedback = "";
+  let loginStudentNumber = "";
+  let loginPassword = "";
 
-  // Connect WebSocket
+  let assessmentData: {
+    title: string;
+    description: string;
+    questions: Array<{
+      id: number;
+      type: string;
+      content: string;
+      required: boolean;
+      answer: string;
+      options: string[];
+      correctAnswers: number[];
+      correctAnswer?: number;
+    }>;
+    timeLimit: number;
+  };
+
+  let loggedInUser = {
+    studentNumber: "",
+    email: "",
+    firstName: "",
+    lastName: "",
+    section: "",
+  };
+
+  type WebSocketMessage =
+    | { type: "newAssessment"; assessment: any }
+    | { type: "activeAssessments"; assessments: any[] }
+    | {
+        type: "loginResponse";
+        success: boolean;
+        message: string;
+        data?: {
+          studentNumber: string;
+          email: string;
+          firstName: string;
+          lastName: string;
+          section: string;
+        };
+      }
+    | {
+        type: "registrationResponse";
+        data: { success: boolean; message: string };
+      };
+
   function connectWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}`);
+    socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}/ws`);
 
     socket.onopen = () => {
-      connectionStatus = "Connected";
-      console.log("Connected to WebSocket server");
+      updateConnectionStatus("Connected");
+      requestActiveAssessments();
     };
 
-    socket.onmessage = (event) => {
-      try {
-        const response = JSON.parse(event.data);
-
-        if (response.type === "registerResponse") {
-          registrationFeedback = response.result.message;
-        } else if (response.type === "newAssessment" && response.assessment) {
-          receivedAssessment = response.assessment; // Corrected to handle the assessment
-          console.log("Received assessment:", receivedAssessment);
-        }
-      } catch (error) {
-        console.error("Failed to parse message:", event.data);
-      }
-    };
+    socket.onmessage = (event) => handleWebSocketMessage(event);
 
     socket.onclose = () => {
-      connectionStatus = "Disconnected";
-      console.log("Disconnected from WebSocket server");
+      updateConnectionStatus("Disconnected");
+      reconnectWebSocket();
     };
 
     socket.onerror = (error) => {
-      connectionStatus = "Error occurred";
+      updateConnectionStatus("Error occurred");
       console.error("WebSocket error:", error);
     };
   }
 
+  function updateConnectionStatus(status: string) {
+    connectionStatus = status;
+    console.log(status);
+  }
+
+  function requestActiveAssessments() {
+    socket.send(JSON.stringify({ type: "getActiveAssessments" }));
+  }
+
+  function reconnectWebSocket() {
+    setTimeout(connectWebSocket, 5000);
+  }
+
+  function handleWebSocketMessage(event: MessageEvent) {
+    const message: WebSocketMessage = JSON.parse(event.data);
+
+    switch (message.type) {
+      case "newAssessment":
+        handleNewAssessment(message.assessment);
+        break;
+      case "activeAssessments":
+        handleActiveAssessments(message.assessments);
+        assessmentData = message.assessments[0];
+
+        break;
+      case "registrationResponse":
+        handleRegistrationResponse(message.data);
+        break;
+      case "loginResponse":
+        handleLoginResponse(message);
+        break;
+      default:
+        console.warn("Unknown message type:", message);
+    }
+  }
+
+  function handleNewAssessment(assessment: any) {
+    receivedAssessment = assessment;
+    //console.log("Assessment received:", receivedAssessment);
+  }
+
+  function handleActiveAssessments(assessments: any[]) {
+    //console.log("Active Assessments received:", assessments);
+    receivedAssessment = assessments[0];
+  }
+
+  function handleRegistrationResponse(data: {
+    success: boolean;
+    message: string;
+  }) {
+    registrationFeedback = data.success
+      ? "Registration successful!"
+      : `Registration failed: ${data.message}`;
+  }
+
+  function handleLoginResponse(message: {
+    success: boolean;
+    message: string;
+    data?: {
+      studentNumber: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      section: string;
+    };
+  }) {
+    loginFeedback = message.success
+      ? "Login successful! Starting assessment..."
+      : `Login failed: ${message.message}`;
+
+    // Ensure data exists before calling saveUserData
+    saveUserData(
+      message.data ?? {
+        studentNumber: "",
+        email: "",
+        firstName: "",
+        lastName: "",
+        section: "",
+      },
+    );
+    showLoginForm = false;
+    loginFeedback = "";
+    startAssessment();
+  }
+
+  function saveUserData(data: typeof loggedInUser) {
+    loggedInUser = data;
+    localStorage.setItem("loggedInUser", JSON.stringify(data));
+  }
+
+  function loadUserData() {
+    const storedData = localStorage.getItem("loggedInUser");
+    if (storedData) {
+      loggedInUser = JSON.parse(storedData);
+    }
+  }
+
   function openRegisterForm() {
-    showRegisterForm ? (showRegisterForm = false) : (showRegisterForm = true);
+    showRegisterForm = !showRegisterForm;
+  }
+
+  function submitLogin() {
+    const loginData = {
+      studentNumber: loginStudentNumber,
+      password: loginPassword,
+    };
+    socket.send(JSON.stringify({ type: "login", data: loginData }));
+    clearLoginForm();
   }
 
   function submitRegistration() {
@@ -84,11 +225,16 @@
       lastName,
       section,
     };
-
-    // Send the data to Electron app via WebSocket
     socket.send(JSON.stringify({ type: "register", data: studentData }));
-    showRegisterForm = false;
-    // clear all fields
+    resetRegistrationForm();
+  }
+
+  function clearLoginForm() {
+    loginStudentNumber = "";
+    loginPassword = "";
+  }
+
+  function resetRegistrationForm() {
     studentNumber = "";
     email = "";
     password = "";
@@ -96,97 +242,153 @@
     lastName = "";
     section = "";
     confirmPassword = "";
+    showRegisterForm = false;
   }
 
   onMount(() => {
     connectWebSocket();
+    loadUserData();
+    if (loggedInUser.studentNumber) {
+      changePage("assessment"); // Automatically redirect to the assessment page or whatever page is appropriate
+    }
   });
+
+  let currentPage = "frontpage";
+
+  export function changePage(page: string) {
+    currentPage = page;
+  }
+
+  function startAssessment() {
+    if (receivedAssessment) {
+      changePage("assessment");
+    }
+  }
+
+  let showLoginForm = false;
+
+  function toggleLoginForm() {
+    showLoginForm = !showLoginForm;
+  }
 </script>
 
 <DarkMode class="fixed top-2 left-2">Toggle</DarkMode>
-<div class="container">
-  <h1 class="text-xl text-center">Student Client Connect</h1>
+{#if currentPage === "frontpage"}
+  <div class="container">
+    <h1 class="text-xl text-center">Student Client Connect</h1>
 
-  <div class="inputs-wrapper">
-    <div class="input-section">
-      <input
-        type="text"
-        bind:value={serverIp}
-        placeholder="Enter WebSocket Server IP"
-        class="input-ip"
-      />
-      <button on:click={connectWebSocket} class="connect-button">
-        <ArrowLeftToBracketOutline />
-      </button>
-    </div>
-    <!-- Connection Status using icons -->
-    <div class="connection-status flex items-center justify-center">
-      {#if connectionStatus === "Connected"}
-        <CheckCircleOutline size="lg" class="text-green-500" />
-        <Tooltip>Connected</Tooltip>
-      {:else if connectionStatus === "Disconnected"}
-        <CloseCircleOutline size="lg" class="text-red-500" />
-      {:else}
-        <span>{connectionStatus}</span>
-        <Tooltip>Connecting...</Tooltip>
-      {/if}
-    </div>
-  </div>
-
-  {#if receivedAssessment}
-    <div class="assessments-wrapper">
-      <h2>Assessment Received</h2>
-      <div class="assessment-section">
-        <h3>{receivedAssessment.title}</h3>
-        <div class="separator"></div>
-        <p>{@html receivedAssessment.description}</p>
-        <div class="separator"></div>
-        <p>Time Limit: TBA</p>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Registration Form -->
-  {#if showRegisterForm}
-    <div class="registration-form">
-      <div class="form-wrapper">
-        <button class="close-registration-button" on:click={openRegisterForm}
-          ><CloseOutline size="sm" /></button
-        >
-        <h2>Student Registration</h2>
+    <div class="inputs-wrapper">
+      <div class="input-section">
         <input
           type="text"
-          bind:value={studentNumber}
-          placeholder="Student Number"
+          bind:value={serverIp}
+          placeholder="Enter WebSocket Server IP"
+          class="input-ip"
         />
-        <input type="email" bind:value={email} placeholder="Email" />
-        <input type="password" bind:value={password} placeholder="Password" />
-        <input
-          type="password"
-          bind:value={confirmPassword}
-          placeholder="Confirm Password"
-        />
-        <input type="text" bind:value={firstName} placeholder="First Name" />
-        <input type="text" bind:value={lastName} placeholder="Last Name" />
-        <input type="text" bind:value={section} placeholder="Section" />
-        <button on:click={submitRegistration}>Submit</button>
-        <p>{registrationFeedback}</p>
+        <button on:click={connectWebSocket} class="connect-button">
+          <ArrowLeftToBracketOutline />
+        </button>
+      </div>
+      <div class="connection-status flex items-center justify-center">
+        {#if connectionStatus === "Connected"}
+          <CheckCircleOutline size="lg" class="text-green-500" />
+          <Tooltip>Connected</Tooltip>
+        {:else if connectionStatus === "Disconnected"}
+          <CloseCircleOutline size="lg" class="text-red-500" />
+        {:else}
+          <CloseCircleOutline size="lg" class="text-yellow-500" />
+          <Tooltip>Connecting...</Tooltip>
+        {/if}
       </div>
     </div>
-  {/if}
 
-  <button
-    on:click={openRegisterForm}
-    class="register-button"
-    style="margin-top: auto;">Register</button
-  >
-</div>
+    {#if receivedAssessment}
+      <div class="assessments-wrapper">
+        <h2>Assessment Received</h2>
+        <div class="assessment-section">
+          <h3>{receivedAssessment.title}</h3>
+          <div class="separator"></div>
+          <p>{@html receivedAssessment.description}</p>
+          <div class="separator"></div>
+          <p>
+            Time Limit: <span style="color: var(--accent)">
+              {receivedAssessment.timeLimit} minutes
+            </span>
+          </p>
+          <div class="separator"></div>
+          <button class="start-assessment" on:click={toggleLoginForm}>
+            Start Assessment
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if showRegisterForm}
+      <div class="registration-form">
+        <div class="form-wrapper">
+          <button class="close-registration-button" on:click={openRegisterForm}
+            ><CloseOutline size="sm" /></button
+          >
+          <h2>Student Registration</h2>
+          <input
+            type="text"
+            bind:value={studentNumber}
+            placeholder="Student Number"
+          />
+          <input type="email" bind:value={email} placeholder="Email" />
+          <input type="password" bind:value={password} placeholder="Password" />
+          <input
+            type="password"
+            bind:value={confirmPassword}
+            placeholder="Confirm Password"
+          />
+          <input type="text" bind:value={firstName} placeholder="First Name" />
+          <input type="text" bind:value={lastName} placeholder="Last Name" />
+          <input type="text" bind:value={section} placeholder="Section" />
+          <button class="submit" on:click={submitRegistration}>Submit</button>
+          <p>{registrationFeedback}</p>
+        </div>
+      </div>
+    {/if}
+    {#if showLoginForm}
+      <div class="registration-form">
+        <div class="form-wrapper">
+          <button class="close-registration-button" on:click={toggleLoginForm}
+            ><CloseOutline size="sm" /></button
+          >
+          <h2>Login for Assessment</h2>
+          <input
+            type="text"
+            bind:value={loginStudentNumber}
+            placeholder="Student Number"
+          />
+          <input
+            type="password"
+            bind:value={loginPassword}
+            placeholder="Password"
+          />
+          <button class="submit" on:click={submitLogin}>Submit</button>
+          <p>{loginFeedback}</p>
+        </div>
+      </div>
+    {/if}
+
+    <button
+      on:click={openRegisterForm}
+      class="register-button"
+      style="margin-top: auto;">Register</button
+    >
+  </div>
+{:else if currentPage === "assessment"}
+  <AssessmentsPage {assessmentData} {changePage} />
+{/if}
 
 <style lang="scss">
   .container {
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: center;
     height: 100svh;
     gap: 1rem;
     padding: 3rem 2rem;
@@ -218,7 +420,7 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    gap: 0.5rem;
+    gap: 1rem;
     border: 1px solid var(--border);
     border-radius: 0.5rem;
     background-color: var(--background);
@@ -257,6 +459,7 @@
     height: 100vh;
     display: flex;
     align-items: center;
+    justify-content: center;
   }
   .close-registration-button {
     position: absolute;
@@ -289,13 +492,19 @@
     }
   }
 
-  .registration-form button {
+  .submit {
     padding: 0.75rem 1.5rem;
-    background-color: var(--secondary);
+    background: var(--secondary);
     color: white;
     border: none;
     border-radius: 0.5rem;
     cursor: pointer;
+  }
+
+  .close-registration-button {
+    padding: 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
   }
 
   .registration-form button:active {

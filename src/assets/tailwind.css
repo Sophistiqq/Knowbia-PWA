@@ -9,10 +9,10 @@ input {
 @layer base {
   :root {
     --text: rgba(37, 37, 37, 1); /* #252525 */
-    --background: rgba(255, 255, 255, 1); /* #ffffff */
+    --background: rgba(235, 235, 235, 1); /* #ffffff */
     --primary: rgba(59, 67, 216, 1); /* #3b43d8 */
     --secondary: rgba(222, 66, 18, 1); /* #de4212 */
-    --accent: rgba(227, 151, 45, 1); /* #e3972d */
+    --accent: rgba(140, 87, 13, 1); /* #e3972d */
     --accent-blur: rgba(227, 151, 45, 0.5); /* #e3972d */
     --disabled: rgba(168, 168, 168, 1); /* #a8a8a8 */
     --border: rgba(174, 174, 174, 1); /* #AEAEAE */
@@ -39,4 +39,3 @@ input {
 .avatar-icon {
   cursor: pointer;
 }
-
