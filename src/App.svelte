@@ -12,7 +12,12 @@
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
 
   let socket: WebSocket;
-  let receivedAssessment: { timeLimit: number; title: string; description: string; questions: any[] } | null = null;
+  let receivedAssessment: {
+    timeLimit: number;
+    title: string;
+    description: string;
+    questions: any[];
+  } | null = null;
   let connectionStatus = "Connecting...";
   let serverIp = "10.0.23.245"; // Default IP address
   const serverPort = "8080"; // WebSocket port
@@ -143,8 +148,13 @@
     showToast("Active assessments received!", "success");
   }
 
-  function handleRegistrationResponse(data: { success: boolean; message: string }) {
-    registrationFeedback = data.success ? "Registration successful!" : `Registration failed: ${data.message}`;
+  function handleRegistrationResponse(data: {
+    success: boolean;
+    message: string;
+  }) {
+    registrationFeedback = data.success
+      ? "Registration successful!"
+      : `Registration failed: ${data.message}`;
     showToast(registrationFeedback, data.success ? "success" : "error");
   }
 
@@ -159,17 +169,21 @@
       section: string;
     };
   }) {
-    loginFeedback = message.success ? "Login successful! Starting assessment..." : `Login failed: ${message.message}`;
+    loginFeedback = message.success
+      ? "Login successful! Starting assessment..."
+      : `Login failed: ${message.message}`;
     showToast(loginFeedback, message.success ? "success" : "error");
 
     if (message.success) {
-      saveUserData(message.data ?? {
-        studentNumber: "",
-        email: "",
-        firstName: "",
-        lastName: "",
-        section: "",
-      });
+      saveUserData(
+        message.data ?? {
+          studentNumber: "",
+          email: "",
+          firstName: "",
+          lastName: "",
+          section: "",
+        },
+      );
       showLoginForm = false;
       startAssessment();
     }
@@ -227,7 +241,15 @@
   }
 
   function validateRegistration(): boolean {
-    if (!studentNumber || !email || !password || !confirmPassword || !firstName || !lastName || !section) {
+    if (
+      !studentNumber ||
+      !email ||
+      !password ||
+      !confirmPassword ||
+      !firstName ||
+      !lastName ||
+      !section
+    ) {
       registrationFeedback = "All fields are required.";
       showToast(registrationFeedback, "error");
       return false;
@@ -298,8 +320,9 @@
   function toggleLoginForm() {
     showLoginForm = !showLoginForm;
   }
-  
-  let toastMessage: { message: string; type: "success" | "error" } | null = null;
+
+  let toastMessage: { message: string; type: "success" | "error" } | null =
+    null;
   export function showToast(message: string, type: "success" | "error") {
     toastMessage = { message, type };
     setTimeout(() => {
@@ -447,6 +470,7 @@
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    height: 100vh;
     height: 100svh;
     gap: 1rem;
     padding: 3rem 2rem;
@@ -471,6 +495,7 @@
   .assessments-wrapper {
     display: flex;
     flex-direction: column;
+    width: 100%;
     gap: 1rem;
   }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   export let changePage: (page: string) => void;
   export let showToast: (message: string, type: "success" | "error") => void;
+
   function logout() {
     localStorage.removeItem("loggedInUser");
     showToast("Logged out successfully", "success");
@@ -16,32 +17,122 @@
       type: string;
       content: string;
       required: boolean;
-      answer: string;
+      answer: string | null; // Adjusted type
       options: string[];
       correctAnswers: number[];
-      correctAnswer?: number;
+      correctAnswer?: number; // For single answer questions
     }>;
   };
 
-  let answers: string[] = [];
-  let questions = assessmentData.questions;
+  // Create an array to store answers, typed as (string | number | null)[]
+  let answers: (string | number | null | number[])[] = new Array(
+    assessmentData.questions.length,
+  ).fill(null);
+
+  function handleCheckboxChange(index: number, value: number) {
+    // Ensure answers[index] is initialized as an array if it isn't already
+    if (!Array.isArray(answers[index])) {
+      answers[index] = [];
+    }
+
+    const selected = answers[index] as number[];
+
+    // Toggle selection
+    if (selected.includes(value)) {
+      selected.splice(selected.indexOf(value), 1);
+    } else {
+      selected.push(value);
+    }
+
+    answers[index] = selected;
+  }
 
   function submitAnswers() {
     let score = 0;
-    for (let i = 0; i < questions.length; i++) {
-      if (questions[i].type === "Short Answer") {
-        if (questions[i].answer === answers[i]) {
+
+    assessmentData.questions.forEach((question, index) => {
+      const answer = answers[index];
+
+      // Check if the answer is correct and log the correct vs. user's answer
+      if (question.type === "Short Answer") {
+        if (answer === question.answer) {
           score++;
+        } else {
+          console.log(
+            `Q${question.id}: Correct Answer = ${question.answer}, My Answer = ${answer}`,
+          );
         }
       }
-    }
-    console.log(score);
+
+      if (question.type === "Multiple Choice") {
+        // Check if the answer is valid
+        if (typeof answer === "number") {
+          // Check if the answer is correct
+          if (answer === question.correctAnswer) {
+            score++;
+          } else {
+            console.log(
+              `Q${question.id}: Correct Answer = ${question.correctAnswer}, My Answer = ${question.options[answer]}`,
+            );
+          }
+        } else {
+          console.log(
+            `Q${question.id}: My Answer is invalid. Answer = ${answer}`,
+          );
+        }
+      }
+
+      if (question.type === "Dropdown") {
+        // Check if the answer is valid
+        if (typeof answer === "number") {
+          // Check if the answer is correct
+          if (answer === question.correctAnswer) {
+            score++;
+          } else {
+            console.log(
+              `Q${question.id}: Correct Answer = ${question.correctAnswer}, My Answer = ${question.options[answer]}`,
+            );
+          }
+        } else {
+          console.log(
+            `Q${question.id}: My Answer is invalid. Answer = ${answer}`,
+          );
+        }
+      }
+
+      if (question.type === "Checkboxes") {
+        const selectedAnswers = answer as number[];
+        if (
+          selectedAnswers.length === question.correctAnswers.length &&
+          selectedAnswers.every((ans) => question.correctAnswers.includes(ans))
+        ) {
+          score++;
+        } else {
+          console.log(
+            `Q${question.id}: Correct Answer = ${question.correctAnswers.join(", ")}, My Answer = ${selectedAnswers.join(", ")}`,
+          );
+        }
+      }
+
+      // Additional checks for other types
+      if (["Paragraph", "Date", "Time"].includes(question.type)) {
+        if (answer === question.answer) {
+          score++;
+        } else {
+          console.log(
+            `Q${question.id}: Correct Answer = ${question.answer}, My Answer = ${answer}`,
+          );
+        }
+      }
+    });
+
+    console.log(answers);
+    alert(`Your score is ${score}`);
   }
 </script>
 
 <div class="container">
   <button class="self-end" on:click={logout}>Logout</button>
-  <h1>Assessments</h1>
   <div class="assessment-descritions">
     <p style="color: var(--accent);">{assessmentData.title}</p>
     <div class="separator"></div>
@@ -51,6 +142,7 @@
       Duration: <span style="color: var(--secondary)">
         {assessmentData.timeLimit}
       </span>
+      minutes
     </p>
   </div>
 </div>
@@ -60,8 +152,11 @@
     {#each assessmentData.questions as question, index}
       {#if question.type === "Short Answer"}
         <p>{question.id}: {question.content}</p>
-        <input type="text" placeholder="Enter your answer" />
-
+        <input
+          type="text"
+          bind:value={answers[index]}
+          placeholder="Enter your answer"
+        />
         <div class="separator"></div>
       {/if}
 
@@ -69,17 +164,21 @@
         <p>{question.id}: {question.content}</p>
         {#each question.options as option, i}
           <label>
-            <input type="radio" name={String(question.id)} value={i} />
+            <input
+              type="radio"
+              name={String(question.id)}
+              bind:group={answers[index]}
+              value={i}
+            />
             {option}
           </label>
         {/each}
         <div class="separator"></div>
       {/if}
 
-      <!-- Dropdown -->
       {#if question.type === "Dropdown"}
         <p>{question.id}: {question.content}</p>
-        <select>
+        <select bind:value={answers[index]}>
           {#each question.options as option, i}
             <option value={i}>{option}</option>
           {/each}
@@ -87,39 +186,46 @@
         <div class="separator"></div>
       {/if}
 
-      <!-- Checkboxes -->
       {#if question.type === "Checkboxes"}
         <p>{question.id}: {question.content}</p>
         {#each question.options as option, i}
           <label>
-            <input type="checkbox" name={String(question.id)} value={i} />
+            <input
+              type="checkbox"
+              name={String(question.id)}
+              value={i}
+              on:change={() => handleCheckboxChange(index, i)}
+            />
             {option}
           </label>
         {/each}
         <div class="separator"></div>
       {/if}
 
-      <!-- Paragraph -->
       {#if question.type === "Paragraph"}
         <p>{question.id}: {question.content}</p>
-        <textarea class="h-40" placeholder="Enter your answer"></textarea>
+        <textarea
+          bind:value={answers[index]}
+          class="h-40"
+          placeholder="Enter your answer"
+        ></textarea>
         <div class="separator"></div>
       {/if}
 
-      <!-- Date -->
       {#if question.type === "Date"}
         <p>{question.id}: {question.content}</p>
-        <input type="date" />
+        <input type="date" bind:value={answers[index]} />
         <div class="separator"></div>
       {/if}
 
       {#if question.type === "Time"}
         <p>{question.id}: {question.content}</p>
-        <input type="time" />
+        <input type="time" bind:value={answers[index]} />
         <div class="separator"></div>
       {/if}
     {/each}
   </div>
+  <button on:click={submitAnswers}>Submit</button>
 </div>
 
 <style>
@@ -150,6 +256,11 @@
     justify-content: center;
     gap: 1rem;
     padding: 2rem;
+  }
+  .questions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
   }
   input[type="text"],
   input[type="date"],
