@@ -1,21 +1,18 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { DarkMode, Tooltip } from "flowbite-svelte";
+  import { DarkMode, Tooltip, Toast } from "flowbite-svelte";
   import {
     ArrowLeftToBracketOutline,
     CheckCircleOutline,
     CloseCircleOutline,
     CloseOutline,
+    CheckCircleSolid,
+    CloseCircleSolid,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
 
   let socket: WebSocket;
-  let receivedAssessment: {
-    timeLimit: number;
-    title: string;
-    description: string;
-    questions: any[];
-  } | null = null;
+  let receivedAssessment: { timeLimit: number; title: string; description: string; questions: any[] } | null = null;
   let connectionStatus = "Connecting...";
   let serverIp = "10.0.23.245"; // Default IP address
   const serverPort = "8080"; // WebSocket port
@@ -124,7 +121,6 @@
       case "activeAssessments":
         handleActiveAssessments(message.assessments);
         assessmentData = message.assessments[0];
-
         break;
       case "registrationResponse":
         handleRegistrationResponse(message.data);
@@ -139,21 +135,17 @@
 
   function handleNewAssessment(assessment: any) {
     receivedAssessment = assessment;
-    //console.log("Assessment received:", receivedAssessment);
+    showToast("New assessment received!", "success");
   }
 
   function handleActiveAssessments(assessments: any[]) {
-    //console.log("Active Assessments received:", assessments);
     receivedAssessment = assessments[0];
+    showToast("Active assessments received!", "success");
   }
 
-  function handleRegistrationResponse(data: {
-    success: boolean;
-    message: string;
-  }) {
-    registrationFeedback = data.success
-      ? "Registration successful!"
-      : `Registration failed: ${data.message}`;
+  function handleRegistrationResponse(data: { success: boolean; message: string }) {
+    registrationFeedback = data.success ? "Registration successful!" : `Registration failed: ${data.message}`;
+    showToast(registrationFeedback, data.success ? "success" : "error");
   }
 
   function handleLoginResponse(message: {
@@ -167,23 +159,20 @@
       section: string;
     };
   }) {
-    loginFeedback = message.success
-      ? "Login successful! Starting assessment..."
-      : `Login failed: ${message.message}`;
+    loginFeedback = message.success ? "Login successful! Starting assessment..." : `Login failed: ${message.message}`;
+    showToast(loginFeedback, message.success ? "success" : "error");
 
-    // Ensure data exists before calling saveUserData
-    saveUserData(
-      message.data ?? {
+    if (message.success) {
+      saveUserData(message.data ?? {
         studentNumber: "",
         email: "",
         firstName: "",
         lastName: "",
         section: "",
-      },
-    );
-    showLoginForm = false;
-    loginFeedback = "";
-    startAssessment();
+      });
+      showLoginForm = false;
+      startAssessment();
+    }
   }
 
   function saveUserData(data: typeof loggedInUser) {
@@ -203,6 +192,8 @@
   }
 
   function submitLogin() {
+    if (!validateLogin()) return;
+
     const loginData = {
       studentNumber: loginStudentNumber,
       password: loginPassword,
@@ -212,10 +203,7 @@
   }
 
   function submitRegistration() {
-    if (password !== confirmPassword) {
-      registrationFeedback = "Passwords do not match";
-      return;
-    }
+    if (!validateRegistration()) return;
 
     const studentData = {
       studentNumber,
@@ -227,6 +215,44 @@
     };
     socket.send(JSON.stringify({ type: "register", data: studentData }));
     resetRegistrationForm();
+  }
+
+  function validateLogin(): boolean {
+    if (!loginStudentNumber || !loginPassword) {
+      loginFeedback = "Please fill in all fields.";
+      showToast(loginFeedback, "error");
+      return false;
+    }
+    return true;
+  }
+
+  function validateRegistration(): boolean {
+    if (!studentNumber || !email || !password || !confirmPassword || !firstName || !lastName || !section) {
+      registrationFeedback = "All fields are required.";
+      showToast(registrationFeedback, "error");
+      return false;
+    }
+
+    if (password !== confirmPassword) {
+      registrationFeedback = "Passwords do not match.";
+      showToast(registrationFeedback, "error");
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      registrationFeedback = "Invalid email format.";
+      showToast(registrationFeedback, "error");
+      return false;
+    }
+
+    if (password.length < 6) {
+      registrationFeedback = "Password must be at least 6 characters long.";
+      showToast(registrationFeedback, "error");
+      return false;
+    }
+
+    return true;
   }
 
   function clearLoginForm() {
@@ -249,7 +275,7 @@
     connectWebSocket();
     loadUserData();
     if (loggedInUser.studentNumber) {
-      changePage("assessment"); // Automatically redirect to the assessment page or whatever page is appropriate
+      changePage("assessment");
     }
   });
 
@@ -262,6 +288,8 @@
   function startAssessment() {
     if (receivedAssessment) {
       changePage("assessment");
+    } else {
+      showToast("No assessment available to start.", "error");
     }
   }
 
@@ -269,6 +297,14 @@
 
   function toggleLoginForm() {
     showLoginForm = !showLoginForm;
+  }
+  
+  let toastMessage: { message: string; type: "success" | "error" } | null = null;
+  export function showToast(message: string, type: "success" | "error") {
+    toastMessage = { message, type };
+    setTimeout(() => {
+      toastMessage = null;
+    }, 3000); // Adjust the display time as needed
   }
 </script>
 
@@ -346,7 +382,6 @@
           <input type="text" bind:value={lastName} placeholder="Last Name" />
           <input type="text" bind:value={section} placeholder="Section" />
           <button class="submit" on:click={submitRegistration}>Submit</button>
-          <p>{registrationFeedback}</p>
         </div>
       </div>
     {/if}
@@ -368,7 +403,6 @@
             placeholder="Password"
           />
           <button class="submit" on:click={submitLogin}>Submit</button>
-          <p>{loginFeedback}</p>
         </div>
       </div>
     {/if}
@@ -380,7 +414,31 @@
     >
   </div>
 {:else if currentPage === "assessment"}
-  <AssessmentsPage {assessmentData} {changePage} />
+  <AssessmentsPage {assessmentData} {changePage} {showToast} />
+{/if}
+
+<!-- Show Toast based on toastMessage -->
+{#if toastMessage}
+  <Toast
+    color={toastMessage.type === "success"
+      ? "green"
+      : toastMessage.type === "error"
+        ? "red"
+        : "blue"}
+    position="top-right"
+    class="z-50 fixed top-4 right-4"
+  >
+    <svelte:fragment slot="icon">
+      {#if toastMessage.type === "success"}
+        <CheckCircleSolid class="w-5 h-5" />
+      {/if}
+      {#if toastMessage.type === "error"}
+        <CloseCircleSolid class="w-5 h-5" />
+      {/if}
+      <span class="sr-only">Notification icon</span>
+    </svelte:fragment>
+    {toastMessage.message}
+  </Toast>
 {/if}
 
 <style lang="scss">
