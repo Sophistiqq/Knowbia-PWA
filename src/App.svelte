@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { DarkMode, Tooltip, Toast } from "flowbite-svelte";
   import {
-    ArrowLeftToBracketOutline,
     CheckCircleOutline,
     CloseCircleOutline,
     CloseOutline,
@@ -19,7 +18,7 @@
     questions: any[];
   } | null = null;
   let connectionStatus = "Connecting...";
-  let serverIp = "10.0.23.245"; // Default IP address
+  let serverIp = "localhost"; // Default IP address
   const serverPort = "8080"; // WebSocket port
 
   // Registration form fields
@@ -62,6 +61,7 @@
   };
 
   type WebSocketMessage =
+    | { type: "ping" }
     | { type: "newAssessment"; assessment: any }
     | { type: "activeAssessments"; assessments: any[] }
     | {
@@ -120,6 +120,10 @@
     const message: WebSocketMessage = JSON.parse(event.data);
 
     switch (message.type) {
+      // handle ping message
+      case "ping":
+        socket.send(JSON.stringify({ type: "pong" }));
+        break;
       case "newAssessment":
         handleNewAssessment(message.assessment);
         break;
@@ -334,20 +338,8 @@
 <DarkMode class="fixed top-2 left-2">Toggle</DarkMode>
 {#if currentPage === "frontpage"}
   <div class="container">
-    <h1 class="text-xl text-center">Student Client Connect</h1>
-
-    <div class="inputs-wrapper">
-      <div class="input-section">
-        <input
-          type="text"
-          bind:value={serverIp}
-          placeholder="Enter WebSocket Server IP"
-          class="input-ip"
-        />
-        <button on:click={connectWebSocket} class="connect-button">
-          <ArrowLeftToBracketOutline />
-        </button>
-      </div>
+    <header>
+      <h1 class="text-xl text-center">Student Client Connect</h1>
       <div class="connection-status flex items-center justify-center">
         {#if connectionStatus === "Connected"}
           <CheckCircleOutline size="lg" class="text-green-500" />
@@ -359,7 +351,7 @@
           <Tooltip>Connecting...</Tooltip>
         {/if}
       </div>
-    </div>
+    </header>
 
     {#if receivedAssessment}
       <div class="assessments-wrapper">
@@ -475,23 +467,6 @@
     gap: 1rem;
     padding: 3rem 2rem;
   }
-
-  .input-section {
-    display: flex;
-    gap: 1rem;
-    background-color: var(--background);
-    border: 1px solid var(--border);
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-  }
-  .input-ip {
-    padding: 0.5rem;
-    color: var(--text);
-    background-color: var(--background);
-    border: none;
-    border-radius: 0.5rem;
-    font-size: 1rem;
-  }
   .assessments-wrapper {
     display: flex;
     flex-direction: column;
@@ -593,12 +568,13 @@
   .registration-form button:active {
     background-color: var(--primary);
   }
-  .inputs-wrapper {
+  header {
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
     gap: 1rem;
+    margin-bottom: 1rem;
   }
   .connection-status {
     padding: 0.5rem;
