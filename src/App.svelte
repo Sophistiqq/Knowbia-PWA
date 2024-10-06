@@ -11,14 +11,9 @@
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
 
   let socket: WebSocket;
-  let receivedAssessment: {
-    timeLimit: number;
-    title: string;
-    description: string;
-    questions: any[];
-  } | null = null;
+  let receivedAssessments: any[] = [];
   let connectionStatus = "Connecting...";
-  let serverIp = "localhost"; // Default IP address
+  let serverIp = window.location.hostname; // Default IP address
   const serverPort = "8080"; // WebSocket port
 
   // Registration form fields
@@ -143,12 +138,12 @@
   }
 
   function handleNewAssessment(assessment: any) {
-    receivedAssessment = assessment;
+    receivedAssessments = [...receivedAssessments, assessment]; // Ensures reactivity
     showToast("New assessment received!", "success");
   }
 
   function handleActiveAssessments(assessments: any[]) {
-    receivedAssessment = assessments[0];
+    receivedAssessments = [...assessments]; // Copy to trigger reactivity
     showToast("Active assessments received!", "success");
   }
 
@@ -179,17 +174,24 @@
     showToast(loginFeedback, message.success ? "success" : "error");
 
     if (message.success) {
-      saveUserData(
-        message.data ?? {
-          studentNumber: "",
-          email: "",
-          firstName: "",
-          lastName: "",
-          section: "",
-        },
-      );
+      const userData = message.data ?? {
+        studentNumber: "",
+        email: "",
+        firstName: "",
+        lastName: "",
+        section: "",
+      };
+
+      saveUserData(userData);
       showLoginForm = false;
-      startAssessment();
+
+      // Ensure assessmentData is available before starting
+      if (assessmentData) {
+        startAssessment(assessmentData);
+      } else {
+        showToast("No assessment data available.", "error");
+      }
+      changePage("assessment");
     }
   }
 
@@ -311,11 +313,12 @@
     currentPage = page;
   }
 
-  function startAssessment() {
-    if (receivedAssessment) {
-      changePage("assessment");
+  function startAssessment(assessment: any) {
+    if (assessment) {
+      assessmentData = { ...assessment };
+      toggleLoginForm();
     } else {
-      showToast("No assessment available to start.", "error");
+      showToast("No Assessment available to start...", "error");
     }
   }
 
@@ -353,24 +356,23 @@
       </div>
     </header>
 
-    {#if receivedAssessment}
+    {#if receivedAssessments}
       <div class="assessments-wrapper">
         <h2>Assessment Received</h2>
-        <div class="assessment-section">
-          <h3>{receivedAssessment.title}</h3>
-          <div class="separator"></div>
-          <p>{@html receivedAssessment.description}</p>
-          <div class="separator"></div>
-          <p>
-            Time Limit: <span style="color: var(--accent)">
-              {receivedAssessment.timeLimit} minutes
-            </span>
-          </p>
-          <div class="separator"></div>
-          <button class="start-assessment" on:click={toggleLoginForm}>
-            Start Assessment
-          </button>
-        </div>
+
+        {#each receivedAssessments as assessment (assessment.title)}
+          <div class="assessment-section">
+            <h3>{assessment.title}</h3>
+            <div class="separator"></div>
+            <p>{@html assessment.description}</p>
+            <div class="separator"></div>
+            <p>Time Limit: {assessment.timeLimit} minutes</p>
+            <div class="separator"></div>
+            <button on:click={() => startAssessment(assessment)}
+              >Start Assessment</button
+            >
+          </div>
+        {/each}
       </div>
     {/if}
 
