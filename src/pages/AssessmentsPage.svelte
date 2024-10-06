@@ -133,7 +133,7 @@
 
 <div class="container">
   <button class="self-end" on:click={logout}>Logout</button>
-  <div class="assessment-descritions">
+  <div class="assessment-descriptions">
     <p style="color: var(--accent);">{assessmentData.title}</p>
     <div class="separator"></div>
     <p>{@html assessmentData.description}</p>
@@ -237,12 +237,14 @@
     gap: 1rem;
     padding: 2rem;
   }
-  .assessment-descritions {
+  .assessment-descriptions {
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
     background-color: var(--background);
     padding: 1rem;
+    width: 100%;
+    margin-top: 1rem;
     border-radius: 0.5rem;
   }
   .separator {
