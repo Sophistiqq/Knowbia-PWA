@@ -2,7 +2,7 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
-  font-family: "Montserrat", sans-serif;
+  font-family: "Lexend Mega", sans-serif;
 }
 
 *,
@@ -12,32 +12,11 @@
 }
 
 body {
-  color: var(--text);
-  &::before {
-    content: "";
-    position: fixed;
-    background-color: var(--background);
-    background-image: radial-gradient(var(--accent) 1px, var(--background) 1px);
-    background-size: 60px 60px;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: -15;
-    animation: move 5s infinite cubic-bezier(0.19, 1, 0.22, 1);
-  }
-}
-
-@keyframes move {
-  0% {
-    background-position: 0 0;
-  }
-  50% {
-    background-position: 150px 150px;
-  }
-  100% {
-    background-position: 0 0;
-  }
+  position: relative;
+  background-color: #e5e5f7;
+  background-image: linear-gradient(var(--primary) 1px, transparent 1px),
+    linear-gradient(to right, var(--primary) 1px, var(--background-2) 1px);
+  background-size:40px 40px;
 }
 
 @media (min-width: 640px) {

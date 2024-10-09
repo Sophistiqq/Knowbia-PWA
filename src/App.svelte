@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { DarkMode, Tooltip, Toast } from "flowbite-svelte";
+  import { Tooltip, Toast } from "flowbite-svelte";
   import {
     CheckCircleOutline,
     CloseCircleOutline,
@@ -9,6 +9,9 @@
     CloseCircleSolid,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
+  // svelte transition
+  import { slide, fly } from "svelte/transition";
+  import { cubicInOut } from "svelte/easing";
 
   let socket: WebSocket;
   let receivedAssessments: any[] = [];
@@ -183,10 +186,10 @@
       };
 
       saveUserData(userData);
-      showLoginForm = false;
 
       // Ensure assessmentData is available before starting
       if (assessmentData) {
+        showLoginForm = false;
         startAssessment(assessmentData);
       } else {
         showToast("No assessment data available.", "error");
@@ -338,11 +341,10 @@
   }
 </script>
 
-<DarkMode class="fixed top-2 left-2">Toggle</DarkMode>
 {#if currentPage === "frontpage"}
   <div class="container">
     <header>
-      <h1 class="text-xl text-center">Student Client Connect</h1>
+      <h1 class="text-xl text-center title">Student Client Connect</h1>
       <div class="connection-status flex items-center justify-center">
         {#if connectionStatus === "Connected"}
           <CheckCircleOutline size="lg" class="text-green-500" />
@@ -361,7 +363,10 @@
         <h2>Assessment Received</h2>
 
         {#each receivedAssessments as assessment (assessment.title)}
-          <div class="assessment-section">
+          <div
+            class="assessment-section"
+            transition:slide={{ duration: 500, easing: cubicInOut }}
+          >
             <h3>{assessment.title}</h3>
             <div class="separator"></div>
             <p>{@html assessment.description}</p>
@@ -377,7 +382,7 @@
     {/if}
 
     {#if showRegisterForm}
-      <div class="registration-form">
+      <div class="registration-form" transition:slide={{ easing: cubicInOut }}>
         <div class="form-wrapper">
           <button class="close-registration-button" on:click={openRegisterForm}
             ><CloseOutline size="sm" /></button
@@ -403,7 +408,7 @@
       </div>
     {/if}
     {#if showLoginForm}
-      <div class="registration-form">
+      <div class="registration-form" transition:slide={{ easing: cubicInOut }}>
         <div class="form-wrapper">
           <button class="close-registration-button" on:click={toggleLoginForm}
             ><CloseOutline size="sm" /></button
@@ -458,8 +463,10 @@
   </Toast>
 {/if}
 
-<style lang="scss">
+<style>
   .container {
+    user-select: none;
+    position: relative;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -468,33 +475,111 @@
     height: 100svh;
     gap: 1rem;
     padding: 3rem 2rem;
+
+    &::after {
+      position: absolute;
+      content: "";
+      height: 5rem;
+      width: 5rem;
+      background-color: var(--accent);
+      top: 0.5rem;
+      left: 80%;
+      z-index: -100;
+    }
+
+    &::before {
+      position: absolute;
+      width: 10rem;
+      height: 10rem;
+      bottom: 2%;
+      left: 5%;
+      content: "";
+      z-index: -10;
+      background-color: transparent;
+      background-image: radial-gradient(var(--border) 1.5px, transparent 1.5px);
+      background-size: 20px 20px;
+    }
+  }
+  .title {
+    background-color: var(--secondary);
+    padding: 1rem;
+    border: 2px solid var(--text);
+    box-shadow: 6px 5px 0px var(--border);
+    position: relative;
+    &:before {
+      position: absolute;
+      content: "";
+      height: 2rem;
+      width: 2rem;
+      background-color: var(--primary);
+      bottom: -1rem;
+      left: 5%;
+    }
   }
   .assessments-wrapper {
+    position: relative;
     display: flex;
     flex-direction: column;
     width: 100%;
     gap: 1rem;
+    & h2 {
+      background-color: var(--background-2);
+      width: fit-content;
+      padding: 1rem;
+      font-weight: bold;
+    }
   }
 
   .assessment-section {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
     gap: 1rem;
-    border: 1px solid var(--border);
+    border: 3px solid var(--text);
     border-radius: 0.5rem;
     background-color: var(--background);
+    box-shadow: 6px 5px 0px var(--border);
     padding: 1rem;
     & h3 {
-      color: var(--accent);
+      color: var(--secondary);
     }
     & p {
       font-size: 0.8rem;
     }
+    & button {
+      padding: 0.75rem 1.5rem;
+      background-color: var(--primary);
+      color: var(--text);
+      border: 3px solid var(--text);
+      box-shadow: 4px 5px 0px var(--border);
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition:
+        box-shadow 0.2s,
+        background-color 0.2s,
+        transform 0.2s;
+      &:active {
+        box-shadow: none;
+        transform: translate(4px, 5px);
+        background-color: var(--accent);
+      }
+    }
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: -5%;
+      right: 5%;
+      width: 2rem;
+      height: 2rem;
+      background-color: var(--accent);
+      box-shadow: 6px -6px 0px var(--primary);
+    }
   }
   .separator {
     width: 100%;
-    height: 1px;
+    height: 2px;
     margin-block: 0.5rem;
     background-color: var(--border);
   }
@@ -502,14 +587,20 @@
   .register-button {
     padding: 0.75rem 1.5rem;
     background-color: var(--primary);
-    color: white;
-    border: none;
+    color: var(--text);
+    border: 3px solid var(--text);
+    box-shadow: 4px 5px 0px var(--border);
     border-radius: 0.5rem;
     cursor: pointer;
-  }
-
-  .register-button:active {
-    background-color: #0056b3;
+    transition:
+      box-shadow 0.2s,
+      background-color 0.2s,
+      transform 0.2s;
+    &:active {
+      box-shadow: none;
+      transform: translate(4px, 5px);
+      background-color: var(--accent);
+    }
   }
 
   .registration-form {
@@ -520,11 +611,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-  }
-  .close-registration-button {
-    position: absolute;
-    top: 5px;
-    right: 5px;
+    z-index: 10;
   }
   .form-wrapper {
     display: flex;
@@ -532,19 +619,24 @@
     justify-content: center;
     align-items: center;
     gap: 1.5rem;
-    border: 1px solid var(--border);
-    background-color: var(--background);
+    border: 3px solid var(--text);
+    background-color: var(--background-2);
     border-radius: 0.5rem;
     padding: 4rem;
     position: relative;
+    box-shadow: 6px 5px 0px var(--border);
+    & h2 {
+      font-weight: bold;
+    }
   }
 
   .registration-form input {
     padding: 1rem;
-    background-color: var(--background);
+    background-color: var(--background-2);
     font-size: 0.8rem;
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 2px solid var(--text);
+    box-shadow: 4px 5px 0px var(--border);
     border-radius: 0.5rem;
     font-size: 1rem;
     &::placeholder {
@@ -554,22 +646,43 @@
 
   .submit {
     padding: 0.75rem 1.5rem;
-    background: var(--secondary);
-    color: white;
-    border: none;
+    background: var(--primary);
+    color: var(--text);
+    border: 3px solid var(--text);
+    box-shadow: 4px 5px 0px var(--border);
     border-radius: 0.5rem;
     cursor: pointer;
+    transition:
+      box-shadow 0.2s,
+      background-color 0.2s,
+      transform 0.2s;
+    &:active {
+      box-shadow: none;
+      transform: translate(4px, 5px);
+      background-color: var(--accent);
+    }
   }
 
   .close-registration-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
     padding: 0.5rem;
-    border: 1px solid var(--border);
+    background-color: var(--secondary);
+    border: 3px solid var(--text);
+    box-shadow: 4px 5px 0px var(--border);
     border-radius: 5px;
+    transition:
+      box-shadow 0.2s,
+      background-color 0.2s,
+      transform 0.2s;
+    &:active {
+      transform: translate(4px, 5px);
+      background-color: var(--accent);
+      box-shadow: none;
+    }
   }
 
-  .registration-form button:active {
-    background-color: var(--primary);
-  }
   header {
     display: flex;
     flex-direction: row;
@@ -580,5 +693,9 @@
   }
   .connection-status {
     padding: 0.5rem;
+    border-radius: 50%;
+    background-color: var(--accent);
+    border: 3px solid var(--text);
+    box-shadow: 4px 5px 0px var(--border);
   }
 </style>
