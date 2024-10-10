@@ -7,10 +7,11 @@
     CloseOutline,
     CheckCircleSolid,
     CloseCircleSolid,
+    PlusOutline,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
   // svelte transition
-  import { slide, fly } from "svelte/transition";
+  import { slide } from "svelte/transition";
   import { cubicInOut } from "svelte/easing";
 
   let socket: WebSocket;
@@ -360,7 +361,12 @@
 
     {#if receivedAssessments}
       <div class="assessments-wrapper">
-        <h2>Assessment Received</h2>
+        <div class="title-register-button">
+          <h2>Assessment Received</h2>
+          <button on:click={openRegisterForm} class="register-button"
+            ><PlusOutline /></button
+          >
+        </div>
 
         {#each receivedAssessments as assessment (assessment.title)}
           <div
@@ -428,12 +434,6 @@
         </div>
       </div>
     {/if}
-
-    <button
-      on:click={openRegisterForm}
-      class="register-button"
-      style="margin-top: auto;">Register</button
-    >
   </div>
 {:else if currentPage === "assessment"}
   <AssessmentsPage {assessmentData} {changePage} {showToast} />
@@ -469,13 +469,10 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-    height: 100vh;
-    height: 100svh;
     gap: 1rem;
     padding: 3rem 2rem;
-
     &::after {
       position: absolute;
       content: "";
@@ -585,11 +582,13 @@
   }
 
   .register-button {
+    justify-self: flex-end;
     padding: 0.75rem 1.5rem;
     background-color: var(--primary);
     color: var(--text);
     border: 3px solid var(--text);
     box-shadow: 4px 5px 0px var(--border);
+    margin-block: 1rem;
     border-radius: 0.5rem;
     cursor: pointer;
     transition:
@@ -605,6 +604,7 @@
 
   .registration-form {
     position: fixed;
+    inset: 0;
     backdrop-filter: blur(2px);
     width: 100vw;
     height: 100vh;
@@ -697,5 +697,12 @@
     background-color: var(--accent);
     border: 3px solid var(--text);
     box-shadow: 4px 5px 0px var(--border);
+  }
+  .title-register-button {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
   }
 </style>

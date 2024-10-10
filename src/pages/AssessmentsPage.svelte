@@ -55,81 +55,76 @@
     assessmentData.questions.forEach((question, index) => {
       const answer = answers[index];
 
-      // Check if the answer is correct and log the correct vs. user's answer
-      if (question.type === "Short Answer") {
-        if (answer === question.answer) {
-          score++;
-        } else {
-          console.log(
-            `Q${question.id}: Correct Answer = ${question.answer}, My Answer = ${answer}`,
-          );
-        }
-      }
-
-      if (question.type === "Multiple Choice") {
-        // Check if the answer is valid
-        if (typeof answer === "number") {
-          // Check if the answer is correct
-          if (answer === question.correctAnswer) {
+      switch (question.type) {
+        case "Short Answer":
+        case "Paragraph":
+        case "Date":
+        case "Time":
+          if (answer === question.answer) {
             score++;
           } else {
             console.log(
-              `Q${question.id}: Correct Answer = ${question.correctAnswer}, My Answer = ${question.options[answer]}`,
+              `Q${question.id}: Correct Answer = ${question.answer}, My Answer = ${answer}`,
             );
           }
-        } else {
-          console.log(
-            `Q${question.id}: My Answer is invalid. Answer = ${answer}`,
-          );
-        }
-      }
+          break;
 
-      if (question.type === "Dropdown") {
-        // Check if the answer is valid
-        if (typeof answer === "number") {
-          // Check if the answer is correct
-          if (answer === question.correctAnswer) {
-            score++;
+        case "Multiple Choice":
+        case "Dropdown":
+          if (typeof answer === "number") {
+            if (answer === question.correctAnswer) {
+              score++;
+            } else {
+              console.log(
+                `Q${question.id}: Correct Answer = ${question.correctAnswer}, My Answer = ${question.options[answer]}`,
+              );
+            }
           } else {
             console.log(
-              `Q${question.id}: Correct Answer = ${question.correctAnswer}, My Answer = ${question.options[answer]}`,
+              `Q${question.id}: My Answer is invalid. Answer = ${answer}`,
             );
           }
-        } else {
-          console.log(
-            `Q${question.id}: My Answer is invalid. Answer = ${answer}`,
-          );
-        }
-      }
+          break;
 
-      if (question.type === "Checkboxes") {
-        const selectedAnswers = answer as number[];
-        if (
-          selectedAnswers.length === question.correctAnswers.length &&
-          selectedAnswers.every((ans) => question.correctAnswers.includes(ans))
-        ) {
-          score++;
-        } else {
-          console.log(
-            `Q${question.id}: Correct Answer = ${question.correctAnswers.join(", ")}, My Answer = ${selectedAnswers.join(", ")}`,
-          );
-        }
-      }
+        case "Checkboxes":
+          const selectedAnswers = answer as number[];
+          if (
+            Array.isArray(selectedAnswers) &&
+            Array.isArray(question.correctAnswers)
+          ) {
+            const isCorrect =
+              selectedAnswers.length === question.correctAnswers.length &&
+              selectedAnswers.every((ans) =>
+                question.correctAnswers.includes(ans),
+              ) &&
+              question.correctAnswers.every((ans) =>
+                selectedAnswers.includes(ans),
+              );
 
-      // Additional checks for other types
-      if (["Paragraph", "Date", "Time"].includes(question.type)) {
-        if (answer === question.answer) {
-          score++;
-        } else {
+            if (isCorrect) {
+              score++;
+            } else {
+              console.log(
+                `Q${question.id}: Correct Answer = ${question.correctAnswers.map((i) => question.options[i]).join(", ")}, ` +
+                  `My Answer = ${selectedAnswers.map((i) => question.options[i]).join(", ")}`,
+              );
+            }
+          } else {
+            console.log(
+              `Q${question.id}: Invalid answer format for Checkboxes`,
+            );
+          }
+          break;
+
+        default:
           console.log(
-            `Q${question.id}: Correct Answer = ${question.answer}, My Answer = ${answer}`,
+            `Q${question.id}: Unknown question type: ${question.type}`,
           );
-        }
       }
     });
 
     console.log(answers);
-    alert(`Your score is ${score}`);
+    alert(`Your score is ${score} out of ${assessmentData.questions.length}`);
   }
 
   let showLogoutModal = false;
@@ -161,7 +156,7 @@
   <div class="questions">
     {#each assessmentData.questions as question, index}
       {#if question.type === "Short Answer"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         <input
           type="text"
           bind:value={answers[index]}
@@ -171,7 +166,7 @@
       {/if}
 
       {#if question.type === "Multiple Choice"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         {#each question.options as option, i}
           <label>
             <input
@@ -187,7 +182,7 @@
       {/if}
 
       {#if question.type === "Dropdown"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         <select bind:value={answers[index]}>
           {#each question.options as option, i}
             <option value={i}>{option}</option>
@@ -197,7 +192,7 @@
       {/if}
 
       {#if question.type === "Checkboxes"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         {#each question.options as option, i}
           <label>
             <input
@@ -213,7 +208,7 @@
       {/if}
 
       {#if question.type === "Paragraph"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         <textarea
           bind:value={answers[index]}
           class="h-40"
@@ -223,13 +218,13 @@
       {/if}
 
       {#if question.type === "Date"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         <input type="date" bind:value={answers[index]} />
         <div class="separator"></div>
       {/if}
 
       {#if question.type === "Time"}
-        <p>{question.id}: {question.content}</p>
+        <p>{question.content}</p>
         <input type="time" bind:value={answers[index]} />
         <div class="separator"></div>
       {/if}
