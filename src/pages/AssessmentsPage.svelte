@@ -65,6 +65,10 @@
     let score = 0;
 
     assessmentData.questions.forEach((question, index) => {
+      if (!question.required) {
+        return;
+      }
+
       const answer = answers[index];
 
       switch (question.type) {
@@ -202,7 +206,10 @@
   <div class="questions">
     {#each assessmentData.questions as question, index}
       {#if question.type === "Short Answer"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         <input
           type="text"
           bind:value={answers[index]}
@@ -212,7 +219,10 @@
       {/if}
 
       {#if question.type === "Multiple Choice"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         {#each question.options as option, i}
           <label>
             <input
@@ -228,7 +238,10 @@
       {/if}
 
       {#if question.type === "Dropdown"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         <select bind:value={answers[index]}>
           {#each question.options as option, i}
             <option value={i}>{option}</option>
@@ -238,7 +251,10 @@
       {/if}
 
       {#if question.type === "Checkboxes"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         {#each question.options as option, i}
           <label>
             <input
@@ -254,7 +270,10 @@
       {/if}
 
       {#if question.type === "Paragraph"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         <textarea
           bind:value={answers[index]}
           class="h-40"
@@ -264,13 +283,19 @@
       {/if}
 
       {#if question.type === "Date"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         <input type="date" bind:value={answers[index]} />
         <div class="separator"></div>
       {/if}
 
       {#if question.type === "Time"}
-        <p>{question.content}</p>
+        <div class="question-container">
+          <p>{question.content}</p>
+          <p>{question.required ? "*" : ""}</p>
+        </div>
         <input type="time" bind:value={answers[index]} />
         <div class="separator"></div>
       {/if}
@@ -459,5 +484,12 @@
         }
       }
     }
+  }
+
+  .question-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
   }
 </style>
