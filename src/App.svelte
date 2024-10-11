@@ -1,4 +1,5 @@
 <script lang="ts">
+  // App.svelte
   import { onMount } from "svelte";
   import { Tooltip, Toast } from "flowbite-svelte";
   import {
@@ -36,6 +37,7 @@
   let loginPassword = "";
 
   let assessmentData: {
+    id: number;
     title: string;
     description: string;
     questions: Array<{
@@ -142,7 +144,11 @@
   }
 
   function handleNewAssessment(assessment: any) {
-    receivedAssessments = [...receivedAssessments, assessment]; // Ensures reactivity
+    // Ensure the assessment has an ID
+    if (!assessment.id) {
+      assessment.id = Date.now(); // Fallback if ID is not provided
+    }
+    receivedAssessments = [...receivedAssessments, assessment];
     showToast("New assessment received!", "success");
   }
 
@@ -172,6 +178,7 @@
       section: string;
     };
   }) {
+    console.log("Login response:", message);
     loginFeedback = message.success
       ? "Login successful! Starting assessment..."
       : `Login failed: ${message.message}`;
@@ -199,16 +206,21 @@
     }
   }
 
-  function saveUserData(data: typeof loggedInUser) {
-    loggedInUser = data;
-    localStorage.setItem("loggedInUser", JSON.stringify(data));
-  }
+  function saveUserData(data: Partial<typeof loggedInUser>) {
+    // Ensure all fields are populated with defaults if missing
+    const defaultUserData = {
+      studentNumber: "",
+      email: "",
+      firstName: "",
+      lastName: "",
+      section: "",
+    };
 
-  function loadUserData() {
-    const storedData = localStorage.getItem("loggedInUser");
-    if (storedData) {
-      loggedInUser = JSON.parse(storedData);
-    }
+    // Merge the provided data with default values
+    loggedInUser = { ...defaultUserData, ...data };
+
+    console.log("Saving user data:", loggedInUser);
+    localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
   }
 
   function openRegisterForm() {
@@ -305,7 +317,6 @@
 
   onMount(() => {
     connectWebSocket();
-    loadUserData();
     if (loggedInUser.studentNumber) {
       changePage("assessment");
     }

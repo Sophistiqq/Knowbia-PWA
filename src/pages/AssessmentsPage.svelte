@@ -1,4 +1,5 @@
 <script lang="ts">
+  // AssessmentsPage
   import { CloseCircleSolid } from "flowbite-svelte-icons";
   export let changePage: (page: string) => void;
   export let showToast: (message: string, type: "success" | "error") => void;
@@ -11,6 +12,7 @@
   }
 
   export let assessmentData: {
+    id: number;
     title: string;
     description: string;
     timeLimit: number;
@@ -49,7 +51,11 @@
     answers[index] = selected;
   }
 
-  function submitAnswers() {
+  const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
+  const serverIp = window.location.hostname;
+  const socket = new WebSocket(`ws://${serverIp}:8080/ws`);
+
+  async function submitAnswers() {
     let score = 0;
 
     assessmentData.questions.forEach((question, index) => {
@@ -123,8 +129,41 @@
       }
     });
 
-    console.log(answers);
-    alert(`Your score is ${score} out of ${assessmentData.questions.length}`);
+    const resultData = {
+      type: "studentResult",
+      result: {
+        studentNumber: loggedInUser.studentNumber,
+        assessmentId: assessmentData.id,
+        score: score,
+        answers: answers,
+      },
+    };
+
+    try {
+      if (socket.readyState === WebSocket.OPEN) {
+        await new Promise<void>((resolve, reject) => {
+          socket.send(JSON.stringify(resultData));
+          socket.onmessage = (event) => {
+            const response = JSON.parse(event.data);
+            if (response.type === "resultConfirmation") {
+              resolve();
+            } else {
+              reject(new Error("Unexpected response type"));
+            }
+          };
+          setTimeout(() => reject(new Error("Server response timeout")), 5000);
+        });
+        showToast(
+          `Your score is ${score} out of ${assessmentData.questions.length}`,
+          "success",
+        );
+      } else {
+        throw new Error("WebSocket is not open");
+      }
+    } catch (error) {
+      console.error("Error submitting answers:", error);
+      showToast("Failed to submit answers", "error");
+    }
   }
 
   let showLogoutModal = false;
