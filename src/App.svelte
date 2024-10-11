@@ -110,6 +110,8 @@
   }
 
   function requestActiveAssessments() {
+    //remve the previous assessments
+    receivedAssessments = [];
     socket.send(JSON.stringify({ type: "getActiveAssessments" }));
   }
 
@@ -203,6 +205,11 @@
         showToast("No assessment data available.", "error");
       }
       changePage("assessment");
+    } else {
+      // If login failed due to already taken assessment, don't change the page
+      if (message.message === "You have already taken this assessment.") {
+        showToast(message.message, "error");
+      }
     }
   }
 
@@ -233,6 +240,7 @@
     const loginData = {
       studentNumber: loginStudentNumber,
       password: loginPassword,
+      assessmentId: assessmentData?.id, // Include the assessment ID in the login request
     };
     socket.send(JSON.stringify({ type: "login", data: loginData }));
     clearLoginForm();

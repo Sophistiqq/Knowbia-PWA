@@ -164,10 +164,11 @@
           setTimeout(() => reject(new Error("Server response timeout")), 5000);
         });
         submitPopupToggle();
-        showToast(
-          `Your score is ${score} out of ${assessmentData.questions.length}`,
-          "success",
-        );
+        showToast("Answers submitted successfully", "success");
+        
+        // Redirect to the frontpage and clear the answers
+        changePage("frontpage");
+        answers = new Array(assessmentData.questions.length).fill(null);
       } else {
         throw new Error("WebSocket is not open");
       }
