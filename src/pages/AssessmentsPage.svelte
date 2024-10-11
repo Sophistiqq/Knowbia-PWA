@@ -55,6 +55,12 @@
   const serverIp = window.location.hostname;
   const socket = new WebSocket(`ws://${serverIp}:8080/ws`);
 
+  let submitPopup = false;
+  function submitPopupToggle() {
+    submitPopup = !submitPopup;
+  }
+
+
   async function submitAnswers() {
     let score = 0;
 
@@ -153,6 +159,7 @@
           };
           setTimeout(() => reject(new Error("Server response timeout")), 5000);
         });
+        submitPopupToggle();
         showToast(
           `Your score is ${score} out of ${assessmentData.questions.length}`,
           "success",
@@ -269,7 +276,7 @@
       {/if}
     {/each}
   </div>
-  <button on:click={submitAnswers} id="submit-button">Submit</button>
+  <button on:click={submitPopupToggle} id="submit-button">Submit</button>
 </div>
 
 {#if showLogoutModal}
@@ -285,6 +292,19 @@
     </div>
   </div>
 {/if}
+
+{#if submitPopup}
+  <div class="modal-container" transition:slide={{ easing: cubicInOut }}>
+    <div class="modal">
+      <p>Are you sure you want to submit your answers?</p>
+      <div class="modal-buttons">
+        <button class="modal-button" on:click={submitAnswers}>Yes</button>
+        <button class="modal-button" on:click={submitPopupToggle}>No</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 
 <style>
   .container {
