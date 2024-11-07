@@ -1,10 +1,10 @@
 import './assets/main.css'
 import './assets/tailwind.css'
-import '@fontsource/montserrat'
-import '@fontsource/archivo'
-import '@fontsource/lexend-mega'
 import App from './App.svelte'
 
+
+import { StatusBar } from '@capacitor/status-bar'
+StatusBar.hide();
 
 
 const app = new App({

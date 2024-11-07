@@ -8,17 +8,19 @@ input {
 
 @layer base {
   :root {
-    --text: rgb(37, 37, 37);
-    --background: #FDFD96;
-    --background-2: #Ffffd9;
-    --primary: #A7DBD8;
-    --secondary: #FF7A5C;
-    --accent: #BAFCA2;
+    --text: rgba(255, 255, 255, 1);
+    --text-dark: rgba(0, 0, 0, 0.8);
+    --text-hover: rgba(50, 50, 50, 1);
+    --background: rgba(20, 8, 50, 0.3);
+    --background-dark: rgba(20, 8, 50, 0.9);
+    --primary: #a7dbd8;
+    --secondary: #ff7a5c;
+    --accent: #bafca2;
     --accent-blur: rgba(227, 151, 45, 1); /* #e3972d */
-    --disabled: rgba(168, 168, 168, 1); /* #a8a8a8 */
-    --border: rgba(50, 50, 50, .7); /* #a8a8a8 */
-    --shadow: rgba(0, 0, 0, 0.2); /* rgba(0, 0, 0, 0.2) */
-    --data-color: black; /* rgba(0, 0, 0, 0.5) */
+    --active: rgba(168, 168, 168, 0.6); /* #a8a8a8 */
+    --border: rgba(255, 255, 255, 0.4); /* #a8a8a8 */
+    --shadow: 0 8px 25px 0 rgba(76, 74, 107, 0.37);
+    --hover: rgba(255, 255, 255, 0.7); /* #a8a8a8 */
   }
 }
 

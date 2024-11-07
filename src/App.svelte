@@ -1,5 +1,8 @@
 <script lang="ts">
   // App.svelte
+  import { StatusBar } from "@capacitor/status-bar";
+  StatusBar.hide();
+
   import { onMount } from "svelte";
   import { Tooltip, Toast } from "flowbite-svelte";
   import {
@@ -106,11 +109,10 @@
 
   function updateConnectionStatus(status: string) {
     connectionStatus = status;
-    console.log(status);
   }
 
   function requestActiveAssessments() {
-    //remve the previous assessments
+    //remove the previous assessments
     receivedAssessments = [];
     socket.send(JSON.stringify({ type: "getActiveAssessments" }));
   }
@@ -129,10 +131,12 @@
         break;
       case "newAssessment":
         handleNewAssessment(message.assessment);
+        console.log("New assessment received:", message.assessment);
         break;
       case "activeAssessments":
         handleActiveAssessments(message.assessments);
         assessmentData = message.assessments[0];
+        console.log("Active assessments received:", message.assessments);
         break;
       case "registrationResponse":
         handleRegistrationResponse(message.data);
@@ -146,10 +150,6 @@
   }
 
   function handleNewAssessment(assessment: any) {
-    // Ensure the assessment has an ID
-    if (!assessment.id) {
-      assessment.id = Date.now(); // Fallback if ID is not provided
-    }
     receivedAssessments = [...receivedAssessments, assessment];
     showToast("New assessment received!", "success");
   }
@@ -180,7 +180,6 @@
       section: string;
     };
   }) {
-    console.log("Login response:", message);
     loginFeedback = message.success
       ? "Login successful! Starting assessment..."
       : `Login failed: ${message.message}`;
@@ -194,6 +193,12 @@
         lastName: "",
         section: "",
       };
+      // check if the selected assessment's title has the leckedAssessment key from localStorage
+      const lockedAssessment = localStorage.getItem("lockedAssessment");
+      if (lockedAssessment === assessmentData.title) {
+        showToast("You are not allowed to take this assessment.", "error");
+        return;
+      }
 
       saveUserData(userData);
 
@@ -212,6 +217,24 @@
       }
     }
   }
+  const STORAGE_UPDATE_INTERVAL = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
+  function checkAndClearLocalStorage() {
+    const lastUpdated = localStorage.getItem("lastUpdated");
+    if (lastUpdated) {
+      const timeSinceLastUpdate = Date.now() - parseInt(lastUpdated, 10);
+      if (timeSinceLastUpdate >= STORAGE_UPDATE_INTERVAL) {
+        // Clear all localStorage data
+        localStorage.clear();
+        // Set the new 'lastUpdated' timestamp
+        localStorage.setItem("lastUpdated", Date.now().toString());
+        console.log("localStorage cleared after 12 hours");
+      }
+    } else {
+      // No 'lastUpdated' entry found, set a new one
+      localStorage.clear();
+      localStorage.setItem("lastUpdated", Date.now().toString());
+    }
+  }
 
   function saveUserData(data: Partial<typeof loggedInUser>) {
     // Ensure all fields are populated with defaults if missing
@@ -226,7 +249,6 @@
     // Merge the provided data with default values
     loggedInUser = { ...defaultUserData, ...data };
 
-    console.log("Saving user data:", loggedInUser);
     localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
   }
 
@@ -324,10 +346,12 @@
   }
 
   onMount(() => {
+    checkAndClearLocalStorage();
     connectWebSocket();
     if (loggedInUser.studentNumber) {
       changePage("assessment");
     }
+    localStorage.removeItem("loggedInUser");
   });
 
   let currentPage = "frontpage";
@@ -381,7 +405,7 @@
     {#if receivedAssessments}
       <div class="assessments-wrapper">
         <div class="title-register-button">
-          <h2>Assessment Received</h2>
+          <h2>Assessments Received</h2>
           <button on:click={openRegisterForm} class="register-button"
             ><PlusOutline /></button
           >
@@ -492,45 +516,13 @@
     align-items: center;
     gap: 1rem;
     padding: 3rem 2rem;
-    &::after {
-      position: absolute;
-      content: "";
-      height: 5rem;
-      width: 5rem;
-      background-color: var(--accent);
-      top: 0.5rem;
-      left: 80%;
-      z-index: -100;
-    }
-
-    &::before {
-      position: absolute;
-      width: 10rem;
-      height: 10rem;
-      bottom: 2%;
-      left: 5%;
-      content: "";
-      z-index: -10;
-      background-color: transparent;
-      background-image: radial-gradient(var(--border) 1.5px, transparent 1.5px);
-      background-size: 20px 20px;
-    }
+    color: var(--text);
   }
   .title {
-    background-color: var(--secondary);
     padding: 1rem;
-    border: 2px solid var(--text);
-    box-shadow: 6px 5px 0px var(--border);
     position: relative;
-    &:before {
-      position: absolute;
-      content: "";
-      height: 2rem;
-      width: 2rem;
-      background-color: var(--primary);
-      bottom: -1rem;
-      left: 5%;
-    }
+    font-weight: bold;
+    font-size: 1.5rem;
   }
   .assessments-wrapper {
     position: relative;
@@ -539,10 +531,10 @@
     width: 100%;
     gap: 1rem;
     & h2 {
-      background-color: var(--background-2);
       width: fit-content;
       padding: 1rem;
       font-weight: bold;
+      font-size: 1rem;
     }
   }
 
@@ -552,45 +544,27 @@
     flex-direction: column;
     height: 100%;
     gap: 1rem;
-    border: 3px solid var(--text);
     border-radius: 0.5rem;
     background-color: var(--background);
-    box-shadow: 6px 5px 0px var(--border);
-    padding: 1rem;
+    backdrop-filter: blur(15px);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
     & h3 {
-      color: var(--secondary);
+      font-weight: bold;
+      font-size: 1.2rem;
     }
     & p {
       font-size: 0.8rem;
     }
     & button {
       padding: 0.75rem 1.5rem;
-      background-color: var(--primary);
-      color: var(--text);
-      border: 3px solid var(--text);
-      box-shadow: 4px 5px 0px var(--border);
       border-radius: 0.5rem;
       cursor: pointer;
-      transition:
-        box-shadow 0.2s,
-        background-color 0.2s,
-        transform 0.2s;
+      transition: background-color 0.2s;
       &:active {
-        box-shadow: none;
-        transform: translate(4px, 5px);
-        background-color: var(--accent);
+        background-color: var(--active);
       }
-    }
-
-    &::after {
-      content: "";
-      position: absolute;
-      top: -5%;
-      right: 5%;
-      width: 2rem;
-      height: 2rem;
-      background-color: var(--accent);
-      box-shadow: 6px -6px 0px var(--primary);
     }
   }
   .separator {
@@ -603,21 +577,15 @@
   .register-button {
     justify-self: flex-end;
     padding: 0.75rem 1.5rem;
-    background-color: var(--primary);
+    background-color: var(--background);
+    border: 1px solid var(--border);
     color: var(--text);
-    border: 3px solid var(--text);
-    box-shadow: 4px 5px 0px var(--border);
     margin-block: 1rem;
     border-radius: 0.5rem;
     cursor: pointer;
-    transition:
-      box-shadow 0.2s,
-      background-color 0.2s,
-      transform 0.2s;
+    transition: background-color 0.1s;
     &:active {
-      box-shadow: none;
-      transform: translate(4px, 5px);
-      background-color: var(--accent);
+      background-color: var(--active);
     }
   }
 
@@ -638,12 +606,11 @@
     justify-content: center;
     align-items: center;
     gap: 1.5rem;
-    border: 3px solid var(--text);
-    background-color: var(--background-2);
+    background-color: var(--background-dark);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
     padding: 4rem;
     position: relative;
-    box-shadow: 6px 5px 0px var(--border);
     & h2 {
       font-weight: bold;
     }
@@ -651,11 +618,10 @@
 
   .registration-form input {
     padding: 1rem;
-    background-color: var(--background-2);
+    background-color: var(--background);
     font-size: 0.8rem;
     color: var(--text);
-    border: 2px solid var(--text);
-    box-shadow: 4px 5px 0px var(--border);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
     font-size: 1rem;
     &::placeholder {
@@ -665,40 +631,30 @@
 
   .submit {
     padding: 0.75rem 1.5rem;
-    background: var(--primary);
+    background: var(--background);
+    border: 1px solid var(--border);
     color: var(--text);
-    border: 3px solid var(--text);
-    box-shadow: 4px 5px 0px var(--border);
     border-radius: 0.5rem;
     cursor: pointer;
-    transition:
-      box-shadow 0.2s,
-      background-color 0.2s,
-      transform 0.2s;
+    transition: background-color 0.2s;
     &:active {
-      box-shadow: none;
-      transform: translate(4px, 5px);
-      background-color: var(--accent);
+      background-color: var(--active);
     }
   }
 
   .close-registration-button {
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
+    top: 0.75rem;
+    right: 0.75rem;
     padding: 0.5rem;
     background-color: var(--secondary);
-    border: 3px solid var(--text);
-    box-shadow: 4px 5px 0px var(--border);
     border-radius: 5px;
     transition:
-      box-shadow 0.2s,
       background-color 0.2s,
       transform 0.2s;
     &:active {
       transform: translate(4px, 5px);
       background-color: var(--accent);
-      box-shadow: none;
     }
   }
 
@@ -713,9 +669,9 @@
   .connection-status {
     padding: 0.5rem;
     border-radius: 50%;
-    background-color: var(--accent);
-    border: 3px solid var(--text);
-    box-shadow: 4px 5px 0px var(--border);
+    background-color: var(--text);
+    border: 1px solid var(--text);
+    box-shadow: var(--shadow);
   }
   .title-register-button {
     display: flex;

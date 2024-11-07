@@ -1,15 +1,66 @@
 <script lang="ts">
   // AssessmentsPage
+
+  import { onMount, onDestroy } from "svelte";
+
+  function logout() {
+    console.log("Logging out...");
+    localStorage.removeItem("loggedInUser");
+    showToast("Logged out successfully", "success");
+    changePage("frontpage");
+  }
+
+  let userInfo = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
+  let warningMessage = "";
+  let minimizationCount = 0;
+  const maxMinimizations = 3; // Set the maximum number of allowed minimizations
+
+  // Send the data to your server (you can use fetch to make an API call)
+  const sendActivityToServer = (activity: string, user: any) => {
+    fetch("http://localhost:3000/detection/detected", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ activity, user }),
+    })
+      .then((response) => response.json())
+      .catch((error) => console.error("Error sending activity:", error));
+  };
+
+  onMount(() => {
+    // Listen for visibility change events (this detects when the page is minimized or hidden)
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+  });
+  const handleVisibilityChange = () => {
+    if (document.hidden) {
+      console.log("User pressed Home or switched apps");
+      minimizationCount++;
+      sendActivityToServer("home_or_recent_apps_pressed", userInfo);
+
+      if (minimizationCount >= maxMinimizations) {
+        warningMessage =
+          "You have exceeded the maximum number of app minimizations allowed for this assessment. Your account has been locked out.";
+        alert(warningMessage);
+        // get the title of the assessment and set it in localStorage as locked
+        localStorage.setItem("lockedAssessment", assessmentData.title);
+        logout();
+      } else {
+        warningMessage = `Please don't minimize the app during the assessment! You have ${maxMinimizations - minimizationCount} remaining.`;
+        alert(warningMessage);
+      }
+    } else {
+      warningMessage = ""; // Clear the warning message
+    }
+  };
+
+  onDestroy(() => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  });
+
   import { CloseCircleSolid } from "flowbite-svelte-icons";
   export let changePage: (page: string) => void;
   export let showToast: (message: string, type: "success" | "error") => void;
   import { fly, slide } from "svelte/transition";
   import { cubicInOut } from "svelte/easing";
-  function logout() {
-    localStorage.removeItem("loggedInUser");
-    showToast("Logged out successfully", "success");
-    changePage("frontpage");
-  }
 
   export let assessmentData: {
     id: number;
@@ -27,6 +78,7 @@
       correctAnswer?: number; // For single answer questions
     }>;
   };
+  console.log(assessmentData);
 
   // Create an array to store answers, typed as (string | number | null)[]
   let answers: (string | number | null | number[])[] = new Array(
@@ -59,7 +111,6 @@
   function submitPopupToggle() {
     submitPopup = !submitPopup;
   }
-
 
   async function submitAnswers() {
     let score = 0;
@@ -165,7 +216,7 @@
         });
         submitPopupToggle();
         showToast("Answers submitted successfully", "success");
-        
+
         // Redirect to the frontpage and clear the answers
         changePage("frontpage");
         answers = new Array(assessmentData.questions.length).fill(null);
@@ -331,7 +382,6 @@
   </div>
 {/if}
 
-
 <style>
   .container {
     display: flex;
@@ -340,15 +390,17 @@
     justify-content: center;
     gap: 1rem;
     padding: 2rem;
+    color: var(--text);
   }
   .assessment-descriptions {
     position: relative;
     display: flex;
     flex-direction: column;
-    border: 3px solid var(--text);
-    background-color: var(--background-2);
-    box-shadow: 7px 6px 0px var(--border);
-    padding: 2rem;
+    border: 1px solid var(--border);
+    background-color: var(--background);
+    backdrop-filter: blur(15px);
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
     width: 100%;
     margin-top: 1rem;
     border-radius: 0.5rem;
@@ -364,7 +416,7 @@
   .separator {
     height: 2px;
     margin: 1rem 0;
-    background-color: var(--text);
+    background-color: var(--border);
   }
   .questions-container {
     display: flex;
@@ -378,6 +430,7 @@
     flex-direction: column;
     backdrop-filter: blur(1px);
     gap: 1rem;
+    color: var(--text);
   }
   input[type="text"],
   input[type="date"],
@@ -386,16 +439,16 @@
   textarea {
     width: 100%;
     padding: 0.5rem;
-    border: 2px solid var(--text);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
-    background-color: var(--background-2);
-    box-shadow: 7px 6px 0px var(--border);
+    background-color: var(--background);
+    backdrop-filter: blur(20px);
   }
   input[type="radio"],
   input[type="checkbox"] {
-    border: 2px solid var(--text);
+    border: 1px solid var(--border);
     margin-right: 1rem;
-    background-color: var(--background-2);
+    background-color: var(--background);
     &:checked {
       background-color: var(--secondary);
     }
@@ -404,11 +457,10 @@
   #submit-button {
     align-self: center;
     padding: 1rem 2rem;
-    border: 2px solid var(--text);
+    border: 1px solid var(--border);
     border-radius: 0.5rem;
     color: var(--text);
-    background-color: var(--secondary);
-    box-shadow: 7px 6px 0px var(--border);
+    background-color: var(--background);
     cursor: pointer;
     margin-bottom: 4rem;
     transition:
@@ -445,16 +497,16 @@
     justify-content: center;
     align-items: center;
     backdrop-filter: blur(5px);
-
+    color: var(--text);
     & .modal {
       display: flex;
       flex-direction: column;
       gap: 1rem;
       margin-inline: 2rem;
       padding: 2rem;
-      border: 3px solid var(--text);
-      background-color: var(--background-2);
-      box-shadow: 7px 6px 0px var(--border);
+      border: 1px solid var(--border);
+      background-color: var(--background-dark);
+      box-shadow: var(--shadow);
       border-radius: 0.5rem;
       & p {
         font-size: 1rem;
@@ -469,10 +521,9 @@
 
       & .modal-button {
         padding: 0.5rem 1rem;
-        border: 2px solid var(--text);
+        border: 1px solid var(--border);
         border-radius: 0.5rem;
-        background-color: var(--background-2);
-        box-shadow: 7px 6px 0px var(--border);
+        background-color: var(--background);
         cursor: pointer;
         transition:
           transform 0.2s,
