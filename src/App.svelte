@@ -11,7 +11,7 @@
     CloseOutline,
     CheckCircleSolid,
     CloseCircleSolid,
-    PlusOutline,
+    UserAddSolid,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
   // svelte transition
@@ -86,8 +86,12 @@
       };
 
   function connectWebSocket() {
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}/ws`);
+   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+   if (window.location.protocol === "https:") {
+     socket = new WebSocket(`${protocol}://server-knowbia.vercel.app/ws`);
+    } else {
+      socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}/ws`);
+    }
 
     socket.onopen = () => {
       updateConnectionStatus("Connected");
@@ -131,12 +135,10 @@
         break;
       case "newAssessment":
         handleNewAssessment(message.assessment);
-        console.log("New assessment received:", message.assessment);
         break;
       case "activeAssessments":
         handleActiveAssessments(message.assessments);
         assessmentData = message.assessments[0];
-        console.log("Active assessments received:", message.assessments);
         break;
       case "registrationResponse":
         handleRegistrationResponse(message.data);
@@ -204,7 +206,6 @@
 
       // Ensure assessmentData is available before starting
       if (assessmentData) {
-        showLoginForm = false;
         startAssessment(assessmentData);
       } else {
         showToast("No assessment data available.", "error");
@@ -227,7 +228,6 @@
         localStorage.clear();
         // Set the new 'lastUpdated' timestamp
         localStorage.setItem("lastUpdated", Date.now().toString());
-        console.log("localStorage cleared after 12 hours");
       }
     } else {
       // No 'lastUpdated' entry found, set a new one
@@ -361,9 +361,9 @@
   }
 
   function startAssessment(assessment: any) {
+    toggleLoginForm();
     if (assessment) {
       assessmentData = { ...assessment };
-      toggleLoginForm();
     } else {
       showToast("No Assessment available to start...", "error");
     }
@@ -407,7 +407,7 @@
         <div class="title-register-button">
           <h2>Assessments Received</h2>
           <button on:click={openRegisterForm} class="register-button"
-            ><PlusOutline /></button
+            ><UserAddSolid /></button
           >
         </div>
 

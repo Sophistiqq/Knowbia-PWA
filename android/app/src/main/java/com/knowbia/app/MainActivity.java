@@ -18,6 +18,9 @@ public class MainActivity extends BridgeActivity {
         // Set FLAG_SECURE to prevent screenshots
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE);
+
+        // Set the theme to dark mode 
+        setTheme(R.style.AppTheme);
     }
 
     @Override

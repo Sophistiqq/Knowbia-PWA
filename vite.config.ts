@@ -19,7 +19,7 @@ export default defineConfig({
       name: 'Knowbia-PWA',
       short_name: 'Knowbia-PWA',
       description: 'Distribute',
-      theme_color: '#ffffff',
+      theme_color: '#000',
       display: 'fullscreen'
     },
 
