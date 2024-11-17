@@ -40,8 +40,7 @@
         warningMessage =
           "You have exceeded the maximum number of app minimizations allowed for this assessment. Your account has been locked out.";
         alert(warningMessage);
-        // get the title of the assessment and set it in localStorage as locked
-        localStorage.setItem("lockedAssessment", assessmentData.title);
+        sendRestrictionToServer();
         logout();
       } else {
         warningMessage = `Please don't minimize the app during the assessment! You have ${maxMinimizations - minimizationCount} remaining.`;
@@ -51,6 +50,11 @@
       warningMessage = ""; // Clear the warning message
     }
   };
+  
+  function sendRestrictionToServer() {
+    console.log(userInfo);
+    sendActivityToServer("restrictUser", userInfo);
+  }
 
   onDestroy(() => {
     document.removeEventListener("visibilitychange", handleVisibilityChange);

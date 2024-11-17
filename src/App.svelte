@@ -89,8 +89,10 @@
    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
    if (window.location.protocol === "https:") {
      socket = new WebSocket(`${protocol}://server-knowbia.vercel.app/ws`);
+     console.log("Connecting to wss://server-knowbia.vercel.app/ws");
     } else {
       socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}/ws`);
+      console.log(`Connecting to ${protocol}://${serverIp}:${serverPort}/ws`);
     }
 
     socket.onopen = () => {
@@ -184,8 +186,15 @@
   }) {
     loginFeedback = message.success
       ? "Login successful! Starting assessment..."
+      : message.message === "You are restricted from taking assessments"
+      ? "You are restricted from taking assessments"
       : `Login failed: ${message.message}`;
     showToast(loginFeedback, message.success ? "success" : "error");
+      
+    if (message.message === "You are restricted from taking assessments") {
+      showToast(message.message, "error");
+      return;
+    }
 
     if (message.success) {
       const userData = message.data ?? {
@@ -195,12 +204,7 @@
         lastName: "",
         section: "",
       };
-      // check if the selected assessment's title has the leckedAssessment key from localStorage
-      const lockedAssessment = localStorage.getItem("lockedAssessment");
-      if (lockedAssessment === assessmentData.title) {
-        showToast("You are not allowed to take this assessment.", "error");
-        return;
-      }
+      
 
       saveUserData(userData);
 
