@@ -49,9 +49,28 @@
 
 body {
   position: relative;
-  background: url(/background.webp);
-  background-size: cover;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
+  /*background: url(/background.webp);*/
+  /*background-size: cover;*/
+  /*background-attachment: fixed;*/
+  /*background-repeat: no-repeat;*/
   font-family: "Rubik", sans-serif;
+}
+
+/* Background - aurora borealis theme */
+body::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -10;
+  background: radial-gradient(
+      circle at 20% 50%,
+      rgba(46, 49, 146, 0.5),
+      transparent 60%
+    ),
+    radial-gradient(circle at 80% 50%, rgba(27, 255, 255, 0.5), transparent 60%),
+    radial-gradient(circle at 50% 80%, rgba(255, 177, 0, 0.5), transparent 70%);
+  background-color: #111; /* dark base color */
 }
