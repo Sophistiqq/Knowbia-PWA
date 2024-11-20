@@ -1,28 +1,22 @@
 <script lang="ts">
-  // App.svelte
   import { StatusBar } from "@capacitor/status-bar";
   StatusBar.hide();
-
   import { onMount } from "svelte";
-  import { Tooltip, Toast } from "flowbite-svelte";
+  import { Toast } from "flowbite-svelte";
   import {
-    CheckCircleOutline,
-    CloseCircleOutline,
     CloseOutline,
     CheckCircleSolid,
     CloseCircleSolid,
     UserAddSolid,
+    ArrowsRepeatOutline,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
-  // svelte transition
-  import { slide } from "svelte/transition";
-  import { cubicInOut } from "svelte/easing";
 
-  let socket: WebSocket;
   let receivedAssessments: any[] = [];
-  let connectionStatus = "Connecting...";
-  let serverIp = window.location.hostname; // Default IP address
-  const serverPort = "8080"; // WebSocket port
+  let serverUrl =
+    window.location.protocol === "https:"
+      ? "https://server-knowbia.vercel.app/distribution"
+      : `http://${window.location.hostname}:3000/distribution`;
 
   // Registration form fields
   let studentNumber = "";
@@ -64,113 +58,79 @@
     section: "",
   };
 
-  type WebSocketMessage =
-    | { type: "ping" }
-    | { type: "newAssessment"; assessment: any }
-    | { type: "activeAssessments"; assessments: any[] }
-    | {
-        type: "loginResponse";
-        success: boolean;
-        message: string;
-        data?: {
-          studentNumber: string;
-          email: string;
-          firstName: string;
-          lastName: string;
-          section: string;
-        };
+  // Fetch active assessments periodically
+  async function fetchActiveAssessments() {
+    try {
+      const response = await fetch(`${serverUrl}/assessments`);
+      const data = await response.json();
+      if (data.success) {
+        receivedAssessments = data.assessments;
+        if (data.assessments.length > 0) {
+          assessmentData = data.assessments[0];
+          showToast("Active assessments received!", "success");
+        } else {
+          showToast("No assessments received", "error");
+        }
       }
-    | {
-        type: "registrationResponse";
-        data: { success: boolean; message: string };
-      };
-
-  function connectWebSocket() {
-   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-   if (window.location.protocol === "https:") {
-     socket = new WebSocket(`${protocol}://server-knowbia.vercel.app/ws`);
-     console.log("Connecting to wss://server-knowbia.vercel.app/ws");
-    } else {
-      socket = new WebSocket(`${protocol}://${serverIp}:${serverPort}/ws`);
-      console.log(`Connecting to ${protocol}://${serverIp}:${serverPort}/ws`);
-    }
-
-    socket.onopen = () => {
-      updateConnectionStatus("Connected");
-      requestActiveAssessments();
-    };
-
-    socket.onmessage = (event) => handleWebSocketMessage(event);
-
-    socket.onclose = () => {
-      updateConnectionStatus("Disconnected");
-      reconnectWebSocket();
-    };
-
-    socket.onerror = (error) => {
-      updateConnectionStatus("Error occurred");
-      console.error("WebSocket error:", error);
-    };
-  }
-
-  function updateConnectionStatus(status: string) {
-    connectionStatus = status;
-  }
-
-  function requestActiveAssessments() {
-    //remove the previous assessments
-    receivedAssessments = [];
-    socket.send(JSON.stringify({ type: "getActiveAssessments" }));
-  }
-
-  function reconnectWebSocket() {
-    setTimeout(connectWebSocket, 5000);
-  }
-
-  function handleWebSocketMessage(event: MessageEvent) {
-    const message: WebSocketMessage = JSON.parse(event.data);
-
-    switch (message.type) {
-      // handle ping message
-      case "ping":
-        socket.send(JSON.stringify({ type: "pong" }));
-        break;
-      case "newAssessment":
-        handleNewAssessment(message.assessment);
-        break;
-      case "activeAssessments":
-        handleActiveAssessments(message.assessments);
-        assessmentData = message.assessments[0];
-        break;
-      case "registrationResponse":
-        handleRegistrationResponse(message.data);
-        break;
-      case "loginResponse":
-        handleLoginResponse(message);
-        break;
-      default:
-        console.warn("Unknown message type:", message);
+    } catch (error) {
+      console.error("Error fetching assessments:", error);
+      showToast("No assessments received", "error");
     }
   }
 
-  function handleNewAssessment(assessment: any) {
-    receivedAssessments = [...receivedAssessments, assessment];
-    showToast("New assessment received!", "success");
+  async function submitLogin() {
+    if (!validateLogin()) return;
+
+    try {
+      const response = await fetch(`${serverUrl}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentNumber: loginStudentNumber,
+          password: loginPassword,
+          assessmentId: assessmentData?.id,
+        }),
+      });
+
+      const data = await response.json();
+      handleLoginResponse(data);
+      clearLoginForm();
+    } catch (error) {
+      console.error("Login error:", error);
+      showToast("Login failed", "error");
+    }
   }
 
-  function handleActiveAssessments(assessments: any[]) {
-    receivedAssessments = [...assessments]; // Copy to trigger reactivity
-    showToast("Active assessments received!", "success");
-  }
+  async function submitRegistration() {
+    if (!validateRegistration()) return;
 
-  function handleRegistrationResponse(data: {
-    success: boolean;
-    message: string;
-  }) {
-    registrationFeedback = data.success
-      ? "Registration successful!"
-      : `Registration failed: ${data.message}`;
-    showToast(registrationFeedback, data.success ? "success" : "error");
+    try {
+      const response = await fetch(`${serverUrl}/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentNumber,
+          email,
+          password,
+          firstName,
+          lastName,
+          section,
+        }),
+      });
+
+      const data = await response.json();
+      handleRegistrationResponse(data);
+      if (data.success) {
+        resetRegistrationForm();
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      showToast("Registration failed", "error");
+    }
   }
 
   function handleLoginResponse(message: {
@@ -187,10 +147,10 @@
     loginFeedback = message.success
       ? "Login successful! Starting assessment..."
       : message.message === "You are restricted from taking assessments"
-      ? "You are restricted from taking assessments"
-      : `Login failed: ${message.message}`;
+        ? "You are restricted from taking assessments"
+        : `Login failed: ${message.message}`;
     showToast(loginFeedback, message.success ? "success" : "error");
-      
+
     if (message.message === "You are restricted from taking assessments") {
       showToast(message.message, "error");
       return;
@@ -204,11 +164,9 @@
         lastName: "",
         section: "",
       };
-      
 
       saveUserData(userData);
 
-      // Ensure assessmentData is available before starting
       if (assessmentData) {
         startAssessment(assessmentData);
       } else {
@@ -216,32 +174,38 @@
       }
       changePage("assessment");
     } else {
-      // If login failed due to already taken assessment, don't change the page
       if (message.message === "You have already taken this assessment.") {
         showToast(message.message, "error");
       }
     }
   }
+
+  function handleRegistrationResponse(data: {
+    success: boolean;
+    message: string;
+  }) {
+    registrationFeedback = data.success
+      ? "Registration successful!"
+      : `Registration failed: ${data.message}`;
+    showToast(registrationFeedback, data.success ? "success" : "error");
+  }
+
   const STORAGE_UPDATE_INTERVAL = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
   function checkAndClearLocalStorage() {
     const lastUpdated = localStorage.getItem("lastUpdated");
     if (lastUpdated) {
       const timeSinceLastUpdate = Date.now() - parseInt(lastUpdated, 10);
       if (timeSinceLastUpdate >= STORAGE_UPDATE_INTERVAL) {
-        // Clear all localStorage data
         localStorage.clear();
-        // Set the new 'lastUpdated' timestamp
         localStorage.setItem("lastUpdated", Date.now().toString());
       }
     } else {
-      // No 'lastUpdated' entry found, set a new one
       localStorage.clear();
       localStorage.setItem("lastUpdated", Date.now().toString());
     }
   }
 
   function saveUserData(data: Partial<typeof loggedInUser>) {
-    // Ensure all fields are populated with defaults if missing
     const defaultUserData = {
       studentNumber: "",
       email: "",
@@ -250,41 +214,8 @@
       section: "",
     };
 
-    // Merge the provided data with default values
     loggedInUser = { ...defaultUserData, ...data };
-
     localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
-  }
-
-  function openRegisterForm() {
-    showRegisterForm = !showRegisterForm;
-  }
-
-  function submitLogin() {
-    if (!validateLogin()) return;
-
-    const loginData = {
-      studentNumber: loginStudentNumber,
-      password: loginPassword,
-      assessmentId: assessmentData?.id, // Include the assessment ID in the login request
-    };
-    socket.send(JSON.stringify({ type: "login", data: loginData }));
-    clearLoginForm();
-  }
-
-  function submitRegistration() {
-    if (!validateRegistration()) return;
-
-    const studentData = {
-      studentNumber,
-      email,
-      password,
-      firstName,
-      lastName,
-      section,
-    };
-    socket.send(JSON.stringify({ type: "register", data: studentData }));
-    resetRegistrationForm();
   }
 
   function validateLogin(): boolean {
@@ -349,14 +280,9 @@
     showRegisterForm = false;
   }
 
-  onMount(() => {
-    checkAndClearLocalStorage();
-    connectWebSocket();
-    if (loggedInUser.studentNumber) {
-      changePage("assessment");
-    }
-    localStorage.removeItem("loggedInUser");
-  });
+  function openRegisterForm() {
+    showRegisterForm = !showRegisterForm;
+  }
 
   let currentPage = "frontpage";
 
@@ -385,41 +311,42 @@
     toastMessage = { message, type };
     setTimeout(() => {
       toastMessage = null;
-    }, 3000); // Adjust the display time as needed
+    }, 3000);
   }
+
+  onMount(() => {
+    checkAndClearLocalStorage();
+    fetchActiveAssessments();
+    if (loggedInUser.studentNumber) {
+      changePage("assessment");
+    }
+    localStorage.removeItem("loggedInUser");
+  });
 </script>
 
 {#if currentPage === "frontpage"}
   <div class="container">
     <header>
-      <h1 class="text-xl text-center title">Student Client Connect</h1>
-      <div class="connection-status flex items-center justify-center">
-        {#if connectionStatus === "Connected"}
-          <CheckCircleOutline size="lg" class="text-green-500" />
-          <Tooltip>Connected</Tooltip>
-        {:else if connectionStatus === "Disconnected"}
-          <CloseCircleOutline size="lg" class="text-red-500" />
-        {:else}
-          <CloseCircleOutline size="lg" class="text-yellow-500" />
-          <Tooltip>Connecting...</Tooltip>
-        {/if}
-      </div>
+      <h1 class="text-xl text-center title">Assessment Client</h1>
     </header>
 
     {#if receivedAssessments}
       <div class="assessments-wrapper">
         <div class="title-register-button">
           <h2>Assessments Received</h2>
-          <button on:click={openRegisterForm} class="register-button"
-            ><UserAddSolid /></button
-          >
+          <div class="buttons-wrapper">
+            <button on:click={openRegisterForm} class="register-button"
+              ><UserAddSolid /></button
+            >
+
+            <button on:click={fetchActiveAssessments} class="refresh-button">
+              <ArrowsRepeatOutline />
+            </button>
+          </div>
         </div>
 
         {#each receivedAssessments as assessment (assessment.title)}
-          <div
-            class="assessment-section"
-            transition:slide={{ duration: 500, easing: cubicInOut }}
-          >
+          <div class="assessment-section">
             <h3>{assessment.title}</h3>
             <div class="separator"></div>
             <p>{@html assessment.description}</p>
@@ -435,7 +362,7 @@
     {/if}
 
     {#if showRegisterForm}
-      <div class="registration-form" transition:slide={{ easing: cubicInOut }}>
+      <div class="registration-form">
         <div class="form-wrapper">
           <button class="close-registration-button" on:click={openRegisterForm}
             ><CloseOutline size="sm" /></button
@@ -461,7 +388,7 @@
       </div>
     {/if}
     {#if showLoginForm}
-      <div class="registration-form" transition:slide={{ easing: cubicInOut }}>
+      <div class="registration-form">
         <div class="form-wrapper">
           <button class="close-registration-button" on:click={toggleLoginForm}
             ><CloseOutline size="sm" /></button
@@ -495,7 +422,7 @@
         ? "red"
         : "blue"}
     position="top-right"
-    class="z-50 fixed top-4 right-4"
+    class="z-50 fixed top-4 right-4 bg-gray-800 text-white"
   >
     <svelte:fragment slot="icon">
       {#if toastMessage.type === "success"}
@@ -519,7 +446,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 1rem;
-    padding: 3rem 2rem;
+    padding: 1rem 2rem;
     color: var(--text);
   }
   .title {
@@ -578,8 +505,28 @@
     background-color: var(--border);
   }
 
+  .buttons-wrapper {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+  }
+  .refresh-button {
+    padding: 0.75rem 1.5rem;
+    background-color: var(--background);
+    border: 1px solid var(--border);
+    color: var(--text);
+    margin-block: 1rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background-color 0.1s;
+    &:active {
+      background-color: var(--active);
+    }
+  }
+
   .register-button {
-    justify-self: flex-end;
     padding: 0.75rem 1.5rem;
     background-color: var(--background);
     border: 1px solid var(--border);
@@ -598,7 +545,6 @@
     inset: 0;
     backdrop-filter: blur(2px);
     width: 100vw;
-    height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -668,14 +614,6 @@
     justify-content: center;
     align-items: center;
     gap: 1rem;
-    margin-bottom: 1rem;
-  }
-  .connection-status {
-    padding: 0.5rem;
-    border-radius: 50%;
-    background-color: var(--text);
-    border: 1px solid var(--text);
-    box-shadow: var(--shadow);
   }
   .title-register-button {
     display: flex;

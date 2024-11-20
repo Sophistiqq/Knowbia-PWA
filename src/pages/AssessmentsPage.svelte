@@ -50,7 +50,7 @@
       warningMessage = ""; // Clear the warning message
     }
   };
-  
+
   function sendRestrictionToServer() {
     console.log(userInfo);
     sendActivityToServer("restrictUser", userInfo);
@@ -108,8 +108,6 @@
   }
 
   const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
-  const serverIp = window.location.hostname;
-  const socket = new WebSocket(`ws://${serverIp}:8080/ws`);
 
   let submitPopup = false;
   function submitPopupToggle() {
@@ -203,30 +201,26 @@
         answers: answers,
       },
     };
-
+    console.log(JSON.stringify(resultData));
     try {
-      if (socket.readyState === WebSocket.OPEN) {
-        await new Promise<void>((resolve, reject) => {
-          socket.send(JSON.stringify(resultData));
-          socket.onmessage = (event) => {
-            const response = JSON.parse(event.data);
-            if (response.type === "resultConfirmation") {
-              resolve();
-            } else {
-              reject(new Error("Unexpected response type"));
-            }
-          };
-          setTimeout(() => reject(new Error("Server response timeout")), 5000);
-        });
-        submitPopupToggle();
-        showToast("Answers submitted successfully", "success");
+      const response = await fetch(
+        "http://localhost:3000/distribution/results",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(resultData),
+        },
+      );
 
-        // Redirect to the frontpage and clear the answers
-        changePage("frontpage");
-        answers = new Array(assessmentData.questions.length).fill(null);
-      } else {
-        throw new Error("WebSocket is not open");
+      if (!response.ok) {
+        throw new Error("Failed to submit answers");
       }
+      submitPopupToggle();
+      showToast("Answers submitted successfully", "success");
+
+      // Redirect to the frontpage and clear the answers
+      changePage("frontpage");
+      answers = new Array(assessmentData.questions.length).fill(null);
     } catch (error) {
       console.error("Error submitting answers:", error);
       showToast("Failed to submit answers", "error");
