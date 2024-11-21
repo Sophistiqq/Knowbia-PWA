@@ -17,7 +17,7 @@
 
   // Send the data to your server (you can use fetch to make an API call)
   const sendActivityToServer = (activity: string, user: any) => {
-    fetch("http://localhost:3000/detection/detected", {
+    fetch("http://localhost:3000/assessments/detected", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ activity, user }),
@@ -211,19 +211,19 @@
           body: JSON.stringify(resultData),
         },
       );
-
-      if (!response.ok) {
-        throw new Error("Failed to submit answers");
+      const data = await response.json();
+      if(data.success === false) {
+        showToast(data.message, "error");
+        return;
       }
       submitPopupToggle();
-      showToast("Answers submitted successfully", "success");
+      showToast(data.message, "success");
 
       // Redirect to the frontpage and clear the answers
       changePage("frontpage");
       answers = new Array(assessmentData.questions.length).fill(null);
     } catch (error) {
-      console.error("Error submitting answers:", error);
-      showToast("Failed to submit answers", "error");
+      console.error("Error submitting answers:");
     }
   }
 
