@@ -1,23 +1,27 @@
 <script lang="ts">
-  // AssessmentsPage
-
   import { onMount, onDestroy } from "svelte";
+  import { userStore } from "../stores/userStore";
+  import { CloseCircleSolid } from "flowbite-svelte-icons";
+
+  // Subscribe to the user store
+  let userInfo: any;
+  const unsubscribe = userStore.subscribe((user) => {
+    userInfo = user;
+  });
 
   function logout() {
     console.log("Logging out...");
-    localStorage.removeItem("loggedInUser");
+    userStore.clearUser();
     showToast("Logged out successfully", "success");
     changePage("frontpage");
   }
 
-  let userInfo = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
   let warningMessage = "";
   let minimizationCount = 0;
-  const maxMinimizations = 3; // Set the maximum number of allowed minimizations
-
-  // Send the data to your server (you can use fetch to make an API call)
+  const maxMinimizations = 3;
+  let host = window.location.hostname;
   const sendActivityToServer = (activity: string, user: any) => {
-    fetch("http://localhost:3000/assessments/detected", {
+    fetch(`http://${host}:3000/assessments/detected`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ activity, user }),
@@ -27,9 +31,9 @@
   };
 
   onMount(() => {
-    // Listen for visibility change events (this detects when the page is minimized or hidden)
     document.addEventListener("visibilitychange", handleVisibilityChange);
   });
+
   const handleVisibilityChange = () => {
     if (document.hidden) {
       console.log("User pressed Home or switched apps");
@@ -39,15 +43,17 @@
       if (minimizationCount >= maxMinimizations) {
         warningMessage =
           "You have exceeded the maximum number of app minimizations allowed for this assessment. Your account has been locked out.";
-        alert(warningMessage);
+        showToast(warningMessage, "error");
         sendRestrictionToServer();
-        logout();
+        setTimeout(() => {
+          logout();
+        }, 2000);
       } else {
         warningMessage = `Please don't minimize the app during the assessment! You have ${maxMinimizations - minimizationCount} remaining.`;
-        alert(warningMessage);
+        showToast(warningMessage, "error");
       }
     } else {
-      warningMessage = ""; // Clear the warning message
+      warningMessage = "";
     }
   };
 
@@ -58,13 +64,12 @@
 
   onDestroy(() => {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
+    // Clean up the store subscription
+    unsubscribe();
   });
 
-  import { CloseCircleSolid } from "flowbite-svelte-icons";
   export let changePage: (page: string) => void;
   export let showToast: (message: string, type: "success" | "error") => void;
-  import { fly, slide } from "svelte/transition";
-  import { cubicInOut } from "svelte/easing";
 
   export let assessmentData: {
     id: number;
@@ -76,31 +81,26 @@
       type: string;
       content: string;
       required: boolean;
-      answer: string | null; // Adjusted type
+      answer: string | null;
       options: string[];
       correctAnswers: number[];
-      correctAnswer?: number; // For single answer questions
+      correctAnswer?: number;
     }>;
   };
-  console.log(assessmentData);
 
-  // Create an array to store answers, typed as (string | number | null)[]
   let answers: (string | number | null | number[])[] = new Array(
     assessmentData.questions.length,
   ).fill(null);
 
-  // Create refs for question elements
   let questionRefs: HTMLElement[] = [];
 
   function handleCheckboxChange(index: number, value: number) {
-    // Ensure answers[index] is initialized as an array if it isn't already
     if (!Array.isArray(answers[index])) {
       answers[index] = [];
     }
 
     const selected = answers[index] as number[];
 
-    // Toggle selection
     if (selected.includes(value)) {
       selected.splice(selected.indexOf(value), 1);
     } else {
@@ -110,11 +110,8 @@
     answers[index] = selected;
   }
 
-  const loggedInUser = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
-
   let submitPopup = false;
   function submitPopupToggle() {
-    // Validate before showing submit popup
     const invalidQuestions = validateRequiredFields();
     if (invalidQuestions.length > 0) {
       showToast("Please answer all required questions", "error");
@@ -175,7 +172,6 @@
   }
 
   async function submitAnswers() {
-    // Final validation before submission
     const invalidQuestions = validateRequiredFields();
     if (invalidQuestions.length > 0) {
       showToast("Please answer all required questions", "error");
@@ -199,27 +195,13 @@
         case "Time":
           if (answer === question.answer) {
             score++;
-          } else {
-            console.log(
-              `Q${question.id}: Correct Answer = ${question.answer}, My Answer = ${answer}`,
-            );
           }
           break;
 
         case "Multiple Choice":
         case "Dropdown":
-          if (typeof answer === "number") {
-            if (answer === question.correctAnswer) {
-              score++;
-            } else {
-              console.log(
-                `Q${question.id}: Correct Answer = ${question.correctAnswer}, My Answer = ${question.options[answer]}`,
-              );
-            }
-          } else {
-            console.log(
-              `Q${question.id}: My Answer is invalid. Answer = ${answer}`,
-            );
+          if (typeof answer === "number" && answer === question.correctAnswer) {
+            score++;
           }
           break;
 
@@ -240,45 +222,28 @@
 
             if (isCorrect) {
               score++;
-            } else {
-              console.log(
-                `Q${question.id}: Correct Answer = ${question.correctAnswers.map((i) => question.options[i]).join(", ")}, ` +
-                  `My Answer = ${selectedAnswers.map((i) => question.options[i]).join(", ")}`,
-              );
             }
-          } else {
-            console.log(
-              `Q${question.id}: Invalid answer format for Checkboxes`,
-            );
           }
           break;
-
-        default:
-          console.log(
-            `Q${question.id}: Unknown question type: ${question.type}`,
-          );
       }
     });
 
     const resultData = {
       type: "studentResult",
       result: {
-        studentNumber: loggedInUser.studentNumber,
+        studentNumber: userInfo.studentNumber,
         assessmentId: assessmentData.id,
         score: score,
         answers: answers,
       },
     };
-    console.log(JSON.stringify(resultData));
+
     try {
-      const response = await fetch(
-        "http://localhost:3000/distribution/results",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(resultData),
-        },
-      );
+      const response = await fetch(`http://${host}:3000/distribution/results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(resultData),
+      });
       const data = await response.json();
       if (data.success === false) {
         showToast(data.message, "error");
@@ -287,11 +252,11 @@
       submitPopupToggle();
       showToast(data.message, "success");
 
-      // Redirect to the frontpage and clear the answers
       changePage("frontpage");
       answers = new Array(assessmentData.questions.length).fill(null);
     } catch (error) {
-      console.error("Error submitting answers:");
+      console.error("Error submitting answers:", error);
+      showToast("Error submitting answers", "error");
     }
   }
 
@@ -302,7 +267,7 @@
   }
 </script>
 
-<div class="container" transition:fly={{ easing: cubicInOut }}>
+<div class="container">
   <div class="assessment-descriptions">
     <button class="self-end logout-btn" on:click={showModal}
       ><CloseCircleSolid size="xl" class="text-[--secondary] " /></button
@@ -429,7 +394,7 @@
 </div>
 
 {#if showLogoutModal}
-  <div class="modal-container" transition:slide={{ easing: cubicInOut }}>
+  <div class="modal-container">
     <div class="modal">
       <p>Are you sure you want to log out?</p>
       <div class="modal-buttons">
@@ -443,7 +408,7 @@
 {/if}
 
 {#if submitPopup}
-  <div class="modal-container" transition:slide={{ easing: cubicInOut }}>
+  <div class="modal-container">
     <div class="modal">
       <p>Are you sure you want to submit your answers?</p>
       <div class="modal-buttons">

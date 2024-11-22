@@ -11,6 +11,7 @@
     ArrowsRepeatOutline,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
+  import { userStore } from "./stores/userStore";
 
   let receivedAssessments: any[] = [];
   let serverUrl =
@@ -50,15 +51,12 @@
     timeLimit: number;
   };
 
-  let loggedInUser = {
-    studentNumber: "",
-    email: "",
-    firstName: "",
-    lastName: "",
-    section: "",
-  };
+  // Subscribe to userStore changes
+  let loggedInUser: any;
+  userStore.subscribe((user) => {
+    loggedInUser = user;
+  });
 
-  // Fetch active assessments periodically
   async function fetchActiveAssessments() {
     try {
       const response = await fetch(`${serverUrl}/assessments`);
@@ -165,7 +163,7 @@
         section: "",
       };
 
-      saveUserData(userData);
+      userStore.setUser(userData);
 
       if (assessmentData) {
         startAssessment(assessmentData);
@@ -188,34 +186,6 @@
       ? "Registration successful!"
       : `Registration failed: ${data.message}`;
     showToast(registrationFeedback, data.success ? "success" : "error");
-  }
-
-  const STORAGE_UPDATE_INTERVAL = 12 * 60 * 60 * 1000; // 12 hours in milliseconds
-  function checkAndClearLocalStorage() {
-    const lastUpdated = localStorage.getItem("lastUpdated");
-    if (lastUpdated) {
-      const timeSinceLastUpdate = Date.now() - parseInt(lastUpdated, 10);
-      if (timeSinceLastUpdate >= STORAGE_UPDATE_INTERVAL) {
-        localStorage.clear();
-        localStorage.setItem("lastUpdated", Date.now().toString());
-      }
-    } else {
-      localStorage.clear();
-      localStorage.setItem("lastUpdated", Date.now().toString());
-    }
-  }
-
-  function saveUserData(data: Partial<typeof loggedInUser>) {
-    const defaultUserData = {
-      studentNumber: "",
-      email: "",
-      firstName: "",
-      lastName: "",
-      section: "",
-    };
-
-    loggedInUser = { ...defaultUserData, ...data };
-    localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
   }
 
   function validateLogin(): boolean {
@@ -315,12 +285,10 @@
   }
 
   onMount(() => {
-    checkAndClearLocalStorage();
     fetchActiveAssessments();
-    if (loggedInUser.studentNumber) {
+    if (userStore.isLoggedIn()) {
       changePage("assessment");
     }
-    localStorage.removeItem("loggedInUser");
   });
 </script>
 

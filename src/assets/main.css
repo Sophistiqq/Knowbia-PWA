@@ -2,8 +2,8 @@
   padding: 0;
   margin: 0;
   box-sizing: border-box;
+  scroll-behavior: smooth;
 }
-
 
 *,
 *::before,
@@ -16,11 +16,8 @@
 @media (min-width: 640px) {
   .container {
     max-width: 100vw !important;
-    
   }
 }
-
-/* apply margin to html if the screen is big */
 
 @media (min-width: 1024px) {
   html {
