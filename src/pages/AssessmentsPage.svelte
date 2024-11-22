@@ -89,6 +89,9 @@
     assessmentData.questions.length,
   ).fill(null);
 
+  // Create refs for question elements
+  let questionRefs: HTMLElement[] = [];
+
   function handleCheckboxChange(index: number, value: number) {
     // Ensure answers[index] is initialized as an array if it isn't already
     if (!Array.isArray(answers[index])) {
@@ -111,10 +114,75 @@
 
   let submitPopup = false;
   function submitPopupToggle() {
+    // Validate before showing submit popup
+    const invalidQuestions = validateRequiredFields();
+    if (invalidQuestions.length > 0) {
+      showToast("Please answer all required questions", "error");
+      focusFirstInvalidQuestion(invalidQuestions[0]);
+      return;
+    }
     submitPopup = !submitPopup;
   }
 
+  function validateRequiredFields(): number[] {
+    const invalidQuestions: number[] = [];
+
+    assessmentData.questions.forEach((question, index) => {
+      if (!question.required) return;
+
+      const answer = answers[index];
+      let isValid = false;
+
+      switch (question.type) {
+        case "Short Answer":
+        case "Paragraph":
+        case "Date":
+        case "Time":
+          isValid = answer !== null && answer !== "";
+          break;
+
+        case "Multiple Choice":
+        case "Dropdown":
+          isValid = typeof answer === "number";
+          break;
+
+        case "Checkboxes":
+          isValid = Array.isArray(answer) && answer.length > 0;
+          break;
+      }
+
+      if (!isValid) {
+        invalidQuestions.push(index);
+      }
+    });
+
+    return invalidQuestions;
+  }
+
+  function focusFirstInvalidQuestion(index: number) {
+    if (questionRefs[index]) {
+      questionRefs[index].scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      const firstInput = questionRefs[index].querySelector(
+        "input, select, textarea",
+      );
+      if (firstInput) {
+        (firstInput as HTMLElement).focus();
+      }
+    }
+  }
+
   async function submitAnswers() {
+    // Final validation before submission
+    const invalidQuestions = validateRequiredFields();
+    if (invalidQuestions.length > 0) {
+      showToast("Please answer all required questions", "error");
+      focusFirstInvalidQuestion(invalidQuestions[0]);
+      submitPopup = false;
+      return;
+    }
     let score = 0;
 
     assessmentData.questions.forEach((question, index) => {
@@ -212,7 +280,7 @@
         },
       );
       const data = await response.json();
-      if(data.success === false) {
+      if (data.success === false) {
         showToast(data.message, "error");
         return;
       }
@@ -255,100 +323,106 @@
 <div class="questions-container">
   <div class="questions">
     {#each assessmentData.questions as question, index}
-      {#if question.type === "Short Answer"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        <input
-          type="text"
-          bind:value={answers[index]}
-          placeholder="Enter your answer"
-        />
-        <div class="separator"></div>
-      {/if}
+      <div
+        bind:this={questionRefs[index]}
+        class="question-wrapper"
+        class:required-unanswered={question.required && !answers[index]}
+      >
+        {#if question.type === "Short Answer"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
+          <input
+            type="text"
+            bind:value={answers[index]}
+            placeholder="Enter your answer"
+          />
+          <div class="separator"></div>
+        {/if}
 
-      {#if question.type === "Multiple Choice"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        {#each question.options as option, i}
-          <label>
-            <input
-              type="radio"
-              name={String(question.id)}
-              bind:group={answers[index]}
-              value={i}
-            />
-            {option}
-          </label>
-        {/each}
-        <div class="separator"></div>
-      {/if}
-
-      {#if question.type === "Dropdown"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        <select bind:value={answers[index]}>
+        {#if question.type === "Multiple Choice"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
           {#each question.options as option, i}
-            <option value={i}>{option}</option>
+            <label>
+              <input
+                type="radio"
+                name={String(question.id)}
+                bind:group={answers[index]}
+                value={i}
+              />
+              {option}
+            </label>
           {/each}
-        </select>
-        <div class="separator"></div>
-      {/if}
+          <div class="separator"></div>
+        {/if}
 
-      {#if question.type === "Checkboxes"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        {#each question.options as option, i}
-          <label>
-            <input
-              type="checkbox"
-              name={String(question.id)}
-              value={i}
-              on:change={() => handleCheckboxChange(index, i)}
-            />
-            {option}
-          </label>
-        {/each}
-        <div class="separator"></div>
-      {/if}
+        {#if question.type === "Dropdown"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
+          <select bind:value={answers[index]}>
+            {#each question.options as option, i}
+              <option value={i}>{option}</option>
+            {/each}
+          </select>
+          <div class="separator"></div>
+        {/if}
 
-      {#if question.type === "Paragraph"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        <textarea
-          bind:value={answers[index]}
-          class="h-40"
-          placeholder="Enter your answer"
-        ></textarea>
-        <div class="separator"></div>
-      {/if}
+        {#if question.type === "Checkboxes"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
+          {#each question.options as option, i}
+            <label>
+              <input
+                type="checkbox"
+                name={String(question.id)}
+                value={i}
+                on:change={() => handleCheckboxChange(index, i)}
+              />
+              {option}
+            </label>
+          {/each}
+          <div class="separator"></div>
+        {/if}
 
-      {#if question.type === "Date"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        <input type="date" bind:value={answers[index]} />
-        <div class="separator"></div>
-      {/if}
+        {#if question.type === "Paragraph"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
+          <textarea
+            bind:value={answers[index]}
+            class="h-40"
+            placeholder="Enter your answer"
+          ></textarea>
+          <div class="separator"></div>
+        {/if}
 
-      {#if question.type === "Time"}
-        <div class="question-container">
-          <p>{question.content}</p>
-          <p>{question.required ? "*" : ""}</p>
-        </div>
-        <input type="time" bind:value={answers[index]} />
-        <div class="separator"></div>
-      {/if}
+        {#if question.type === "Date"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
+          <input type="date" bind:value={answers[index]} />
+          <div class="separator"></div>
+        {/if}
+
+        {#if question.type === "Time"}
+          <div class="question-container">
+            <p>{question.content}</p>
+            <p class="required-marker">{question.required ? "*" : ""}</p>
+          </div>
+          <input type="time" bind:value={answers[index]} />
+          <div class="separator"></div>
+        {/if}
+      </div>
     {/each}
   </div>
   <button on:click={submitPopupToggle} id="submit-button">Submit</button>
@@ -536,10 +610,22 @@
     }
   }
 
-  .question-container {
+  .question-wrapper {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 1rem;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.5s ease;
+    border-bottom: 1px solid var(--secondary);
+  }
+
+  .required-unanswered {
+    background-color: rgba(100, 0, 0, 0.1);
+  }
+
+  .required-marker {
+    color: var(--accent);
+    font-weight: bold;
   }
 </style>
