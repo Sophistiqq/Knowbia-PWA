@@ -1,17 +1,12 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { userStore } from "../stores/userStore";
   import { CloseCircleSolid } from "flowbite-svelte-icons";
 
-  // Subscribe to the user store
-  let userInfo: any;
-  const unsubscribe = userStore.subscribe((user) => {
-    userInfo = user;
-  });
+  // declare the userInfo from localStorage and store it in a variable
+  let userInfo = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
 
   function logout() {
     console.log("Logging out...");
-    userStore.clearUser();
     showToast("Logged out successfully", "success");
     changePage("frontpage");
   }
@@ -32,6 +27,7 @@
 
   onMount(() => {
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    console.log(userInfo);
   });
 
   const handleVisibilityChange = () => {
@@ -64,8 +60,6 @@
 
   onDestroy(() => {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
-    // Clean up the store subscription
-    unsubscribe();
   });
 
   export let changePage: (page: string) => void;
@@ -237,6 +231,7 @@
         answers: answers,
       },
     };
+    console.log("Submitting answers:", resultData);
 
     try {
       const response = await fetch(`http://${host}:3000/distribution/results`, {
@@ -251,7 +246,6 @@
       }
       submitPopupToggle();
       showToast(data.message, "success");
-
       changePage("frontpage");
       answers = new Array(assessmentData.questions.length).fill(null);
     } catch (error) {

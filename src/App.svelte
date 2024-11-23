@@ -1,17 +1,19 @@
 <script lang="ts">
   import { StatusBar } from "@capacitor/status-bar";
   StatusBar.hide();
+
   import { onMount } from "svelte";
+  import { fly, slide } from "svelte/transition";
+  import { cubicInOut } from "svelte/easing";
   import { Toast } from "flowbite-svelte";
   import {
     CloseOutline,
     CheckCircleSolid,
     CloseCircleSolid,
-    UserAddSolid,
+    GridSolid,
     ArrowsRepeatOutline,
   } from "flowbite-svelte-icons";
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
-  import { userStore } from "./stores/userStore";
 
   let receivedAssessments: any[] = [];
   let serverUrl =
@@ -19,7 +21,23 @@
       ? "https://server-knowbia.vercel.app/distribution"
       : `http://${window.location.hostname}:3000/distribution`;
 
-  // Registration form fields
+  // User state management
+  let isLoggedIn = false;
+  let loggedInUser = {
+    studentNumber: "",
+    email: "",
+    firstName: "",
+    lastName: "",
+    section: "",
+  };
+
+  // Login form state
+  let loginStudentNumber = "";
+  let loginPassword = "";
+  let loginFeedback = "";
+
+  // Registration form state
+  let showRegisterForm = false;
   let studentNumber = "";
   let email = "";
   let password = "";
@@ -27,12 +45,7 @@
   let lastName = "";
   let section = "";
   let confirmPassword = "";
-
-  let showRegisterForm = false;
   let registrationFeedback = "";
-  let loginFeedback = "";
-  let loginStudentNumber = "";
-  let loginPassword = "";
 
   let assessmentData: {
     id: number;
@@ -51,12 +64,7 @@
     timeLimit: number;
   };
 
-  // Subscribe to userStore changes
-  let loggedInUser: any;
-  userStore.subscribe((user) => {
-    loggedInUser = user;
-  });
-
+  // Fetch active assessments periodically
   async function fetchActiveAssessments() {
     try {
       const response = await fetch(`${serverUrl}/assessments`);
@@ -66,13 +74,11 @@
         if (data.assessments.length > 0) {
           assessmentData = data.assessments[0];
           showToast("Active assessments received!", "success");
-        } else {
-          showToast("No assessments received", "error");
         }
       }
     } catch (error) {
       console.error("Error fetching assessments:", error);
-      showToast("No assessments received", "error");
+      showToast("Failed to fetch assessments", "error");
     }
   }
 
@@ -88,13 +94,11 @@
         body: JSON.stringify({
           studentNumber: loginStudentNumber,
           password: loginPassword,
-          assessmentId: assessmentData?.id,
         }),
       });
 
       const data = await response.json();
       handleLoginResponse(data);
-      clearLoginForm();
     } catch (error) {
       console.error("Login error:", error);
       showToast("Login failed", "error");
@@ -142,39 +146,16 @@
       section: string;
     };
   }) {
-    loginFeedback = message.success
-      ? "Login successful! Starting assessment..."
-      : message.message === "You are restricted from taking assessments"
-        ? "You are restricted from taking assessments"
-        : `Login failed: ${message.message}`;
-    showToast(loginFeedback, message.success ? "success" : "error");
-
-    if (message.message === "You are restricted from taking assessments") {
-      showToast(message.message, "error");
-      return;
-    }
-
-    if (message.success) {
-      const userData = message.data ?? {
-        studentNumber: "",
-        email: "",
-        firstName: "",
-        lastName: "",
-        section: "",
-      };
-
-      userStore.setUser(userData);
-
-      if (assessmentData) {
-        startAssessment(assessmentData);
-      } else {
-        showToast("No assessment data available.", "error");
-      }
-      changePage("assessment");
+    if (message.success && message.data) {
+      loggedInUser = message.data;
+      console.log("Logged in user:", loggedInUser);
+      isLoggedIn = true;
+      localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
+      showToast("Login successful!", "success");
+      clearLoginForm();
     } else {
-      if (message.message === "You have already taken this assessment.") {
-        showToast(message.message, "error");
-      }
+      loginFeedback = `Login failed: ${message.message}`;
+      showToast(loginFeedback, "error");
     }
   }
 
@@ -186,6 +167,19 @@
       ? "Registration successful!"
       : `Registration failed: ${data.message}`;
     showToast(registrationFeedback, data.success ? "success" : "error");
+  }
+
+  function saveUserData(data: Partial<typeof loggedInUser>) {
+    const defaultUserData = {
+      studentNumber: "",
+      email: "",
+      firstName: "",
+      lastName: "",
+      section: "",
+    };
+
+    loggedInUser = { ...defaultUserData, ...data };
+    localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
   }
 
   function validateLogin(): boolean {
@@ -250,29 +244,58 @@
     showRegisterForm = false;
   }
 
-  function openRegisterForm() {
-    showRegisterForm = !showRegisterForm;
-  }
-
   let currentPage = "frontpage";
-
-  export function changePage(page: string) {
+  function changePage(page: string) {
     currentPage = page;
   }
 
-  function startAssessment(assessment: any) {
-    toggleLoginForm();
+  // Check if the student has already taken the assessment and also if they are restricted from taking it again, or also they are restricted because of violations
+  function checkAssessmentStatus(assessmentId: number): Promise<boolean> {
+    return fetch(`${serverUrl}/status/${assessmentId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        studentNumber: loggedInUser.studentNumber,
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log("Assessment status:", data);
+        if (data.success) {
+          return true;
+        }
+        if (data.message === "You have already taken this assessment.") {
+          showToast("You have already taken this assessment", "error");
+        } else if (
+          data.message === "You are restricted from taking assessments"
+        ) {
+          showToast(
+            "You have been restricted from taking assessments",
+            "error",
+          );
+        }
+        return false;
+      })
+      .catch((error) => {
+        console.error("Error checking assessment status:", error);
+        return false;
+      });
+  }
+
+  async function startAssessment(assessment: any) {
+    const isEligible = await checkAssessmentStatus(assessment.id);
+    if (!isEligible) {
+      return;
+    }
+    console.log("Starting assessment:", assessment);
+    changePage("assessment");
     if (assessment) {
       assessmentData = { ...assessment };
     } else {
       showToast("No Assessment available to start...", "error");
     }
-  }
-
-  let showLoginForm = false;
-
-  function toggleLoginForm() {
-    showLoginForm = !showLoginForm;
   }
 
   let toastMessage: { message: string; type: "success" | "error" } | null =
@@ -285,32 +308,87 @@
   }
 
   onMount(() => {
+    checkLoginSession();
     fetchActiveAssessments();
-    if (userStore.isLoggedIn()) {
-      changePage("assessment");
-    }
   });
+
+  // Check for existing login session
+  function checkLoginSession() {
+    const savedUser = localStorage.getItem("loggedInUser");
+    if (savedUser) {
+      loggedInUser = JSON.parse(savedUser);
+      isLoggedIn = true;
+    }
+  }
+
+  function logout() {
+    isLoggedIn = false;
+    loggedInUser = {
+      studentNumber: "",
+      email: "",
+      firstName: "",
+      lastName: "",
+      section: "",
+    };
+    localStorage.removeItem("loggedInUser");
+    clearLoginForm();
+  }
+
+  let menu = false;
 </script>
 
-{#if currentPage === "frontpage"}
-  <div class="container">
+{#if !isLoggedIn}
+  <div class="login-container">
+    <div class="login-form">
+      <h1 class="login-title">Knowbia Login</h1>
+      <div class="form-wrapper">
+        <input
+          type="text"
+          bind:value={loginStudentNumber}
+          placeholder="Student Number"
+        />
+        <input
+          type="password"
+          bind:value={loginPassword}
+          placeholder="Password"
+        />
+        <button class="login-button" on:click={submitLogin}>Login</button>
+        <button
+          class="register-link"
+          on:click={() => (showRegisterForm = true)}
+        >
+          New student? Register here
+        </button>
+      </div>
+    </div>
+  </div>
+{:else if currentPage === "frontpage"}
+  <div class="container" transition:slide={{ easing: cubicInOut }}>
     <header>
       <h1 class="text-xl text-center title">Assessment Client</h1>
     </header>
+    <div class="menu-btn">
+      <button on:click={() => (menu = !menu)}>
+        <GridSolid size="xl" />
+      </button>
+    </div>
+
+    {#if menu}
+      <div class="menu" transition:fly={{ easing: cubicInOut }}>
+        <div class="user-info">
+          <p>{loggedInUser.firstName} {loggedInUser.lastName}</p>
+        </div>
+        <button on:click={logout}>Logout</button>
+      </div>
+    {/if}
 
     {#if receivedAssessments}
       <div class="assessments-wrapper">
-        <div class="title-register-button">
-          <h2>Assessments Received</h2>
-          <div class="buttons-wrapper">
-            <button on:click={openRegisterForm} class="register-button"
-              ><UserAddSolid /></button
-            >
-
-            <button on:click={fetchActiveAssessments} class="refresh-button">
-              <ArrowsRepeatOutline />
-            </button>
-          </div>
+        <div class="title-refresh-button">
+          <h2>Available Assessments</h2>
+          <button on:click={fetchActiveAssessments} class="refresh-button">
+            <ArrowsRepeatOutline />
+          </button>
         </div>
 
         {#each receivedAssessments as assessment (assessment.title)}
@@ -321,59 +399,11 @@
             <div class="separator"></div>
             <p>Time Limit: {assessment.timeLimit} minutes</p>
             <div class="separator"></div>
-            <button on:click={() => startAssessment(assessment)}
-              >Start Assessment</button
-            >
+            <button on:click={() => startAssessment(assessment)}>
+              Start Assessment
+            </button>
           </div>
         {/each}
-      </div>
-    {/if}
-
-    {#if showRegisterForm}
-      <div class="registration-form">
-        <div class="form-wrapper">
-          <button class="close-registration-button" on:click={openRegisterForm}
-            ><CloseOutline size="sm" /></button
-          >
-          <h2>Student Registration</h2>
-          <input
-            type="text"
-            bind:value={studentNumber}
-            placeholder="Student Number"
-          />
-          <input type="email" bind:value={email} placeholder="Email" />
-          <input type="password" bind:value={password} placeholder="Password" />
-          <input
-            type="password"
-            bind:value={confirmPassword}
-            placeholder="Confirm Password"
-          />
-          <input type="text" bind:value={firstName} placeholder="First Name" />
-          <input type="text" bind:value={lastName} placeholder="Last Name" />
-          <input type="text" bind:value={section} placeholder="Section" />
-          <button class="submit" on:click={submitRegistration}>Submit</button>
-        </div>
-      </div>
-    {/if}
-    {#if showLoginForm}
-      <div class="registration-form">
-        <div class="form-wrapper">
-          <button class="close-registration-button" on:click={toggleLoginForm}
-            ><CloseOutline size="sm" /></button
-          >
-          <h2>Login for Assessment</h2>
-          <input
-            type="text"
-            bind:value={loginStudentNumber}
-            placeholder="Student Number"
-          />
-          <input
-            type="password"
-            bind:value={loginPassword}
-            placeholder="Password"
-          />
-          <button class="submit" on:click={submitLogin}>Submit</button>
-        </div>
       </div>
     {/if}
   </div>
@@ -381,16 +411,41 @@
   <AssessmentsPage {assessmentData} {changePage} {showToast} />
 {/if}
 
-<!-- Show Toast based on toastMessage -->
+{#if showRegisterForm}
+  <div class="registration-form">
+    <div class="form-wrapper reg-wrapper">
+      <button
+        class="close-registration-button"
+        on:click={() => (showRegisterForm = false)}
+      >
+        <CloseOutline size="sm" />
+      </button>
+      <h2>Student Registration</h2>
+      <input
+        type="text"
+        bind:value={studentNumber}
+        placeholder="Student Number"
+      />
+      <input type="email" bind:value={email} placeholder="Email" />
+      <input type="password" bind:value={password} placeholder="Password" />
+      <input
+        type="password"
+        bind:value={confirmPassword}
+        placeholder="Confirm Password"
+      />
+      <input type="text" bind:value={firstName} placeholder="First Name" />
+      <input type="text" bind:value={lastName} placeholder="Last Name" />
+      <input type="text" bind:value={section} placeholder="Section" />
+      <button class="submit" on:click={submitRegistration}>Submit</button>
+    </div>
+  </div>
+{/if}
+
 {#if toastMessage}
   <Toast
-    color={toastMessage.type === "success"
-      ? "green"
-      : toastMessage.type === "error"
-        ? "red"
-        : "blue"}
+    color={toastMessage.type === "success" ? "green" : "red"}
     position="top-right"
-    class="z-50 fixed top-4 right-4 bg-gray-800 text-white"
+    class="z-100 fixed top-4 right-4 bg-gray-800 text-white"
   >
     <svelte:fragment slot="icon">
       {#if toastMessage.type === "success"}
@@ -405,7 +460,7 @@
   </Toast>
 {/if}
 
-<style>
+<style lang="scss">
   .container {
     user-select: none;
     position: relative;
@@ -418,176 +473,266 @@
     color: var(--text);
   }
   .title {
-    padding: 1rem;
-    position: relative;
-    font-weight: bold;
     font-size: 1.5rem;
+    font-weight: bold;
+    margin-top: 1rem;
   }
-  .assessments-wrapper {
-    position: relative;
+  .login-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100dvh;
+  }
+  .login-form {
     display: flex;
     flex-direction: column;
-    width: 100%;
     gap: 1rem;
-    & h2 {
-      width: fit-content;
-      padding: 1rem;
-      font-weight: bold;
-      font-size: 1rem;
+    padding: 3rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background-color: var(--background);
+    backdrop-filter: blur(5px);
+  }
+  .login-title {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+  .form-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 2rem;
+  }
+  .login-button {
+    padding: 0.5rem;
+    background-color: var(--background);
+    color: var(--text);
+    border: none;
+    border-radius: 0.3rem;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition:
+      background-color 0.3s,
+      color 0.3s;
+    &:active {
+      background-color: var(--hover);
     }
+  }
+  .form-wrapper input {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    background-color: var(--background);
+    border-radius: 0.3rem;
+    &::placeholder {
+      font-size: 0.75rem;
+    }
+  }
+  .register-link {
+    margin-top: 2rem;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 0.9rem;
+    &:active {
+      text-decoration: underline;
+    }
+  }
+  .registration-form {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100dvw;
+    height: 100dvh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+  .registration-form .reg-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    padding: 4rem;
+    border: 1px solid var(--border);
+    border-radius: 0.3rem;
+    background-color: var(--background);
+    backdrop-filter: blur(25px);
+    position: relative;
+  }
+  .close-registration-button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text);
+    transition: color 0.3s;
+    border-radius: 0.3rem;
+    border: 1px solid var(--border);
+    padding: 0.5rem;
+    &:active {
+      color: var(--hover);
+    }
+  }
+  .registration-form h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+  }
+  .registration-form input {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.9rem;
+    border: 1px solid var(--border);
+    background-color: var(--background);
+    border-radius: 0.3rem;
+    &::placeholder {
+      font-size: 0.75rem;
+    }
+  }
+  .registration-form .submit {
+    padding: 1rem 1.5rem;
+    background-color: var(--background);
+    color: var(--text);
+    border: none;
+    border-radius: 0.3rem;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    margin-top: 1rem;
+    transition:
+      background-color 0.3s,
+      color 0.3s;
+    &:active {
+      background-color: var(--hover);
+    }
+  }
+  .user-info {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 1rem;
   }
 
-  .assessment-section {
-    position: relative;
+  .menu-btn {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 100;
+    button {
+      color: var(--text);
+      border: none;
+      border-radius: 0.3rem;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      &:active {
+        background-color: var(--hover);
+      }
+    }
+  }
+  /* Menu sidebar */
+  .menu {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 15rem;
+    height: 100svh;
+    background-color: var(--background-dark);
+    backdrop-filter: blur(15px);
     display: flex;
     flex-direction: column;
-    height: 100%;
-    gap: 1rem;
-    border-radius: 0.5rem;
-    background-color: var(--background);
-    backdrop-filter: blur(15px);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    padding: 1.5rem;
-    & h3 {
-      font-weight: bold;
-      font-size: 1.2rem;
-    }
-    & p {
-      font-size: 0.8rem;
-    }
-    & button {
-      padding: 0.75rem 1.5rem;
-      border-radius: 0.5rem;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 80;
+    padding-top: 10vh;
+    border-right: 1px solid var(--border);
+    button {
+      width: 75%;
+      padding: 1rem;
+      color: var(--text);
+      border: none;
       cursor: pointer;
-      transition: background-color 0.2s;
+      transition: background-color 0.3s;
+      border-top: 1px solid var(--border);
       &:active {
-        background-color: var(--active);
+        background-color: var(--hover);
+      }
+    }
+  }
+  .assessments-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+    padding: 1rem;
+    .title-refresh-button {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      button {
+        background-color: var(--background);
+        color: var(--text);
+        border: none;
+        border-radius: 0.3rem;
+        padding: 0.5rem;
+        cursor: pointer;
+        transition: background-color 0.3s;
+        &:active {
+          background-color: var(--hover);
+        }
+      }
+    }
+    .assessment-section {
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.3rem;
+      background-color: var(--background);
+      backdrop-filter: blur(5px);
+      p {
+        margin: 0.5rem 0;
+      }
+      button {
+        padding: 0.5rem;
+        color: var(--text);
+        border: none;
+        width: 100%;
+        border-radius: 0.3rem;
+        cursor: pointer;
+        transition:
+          background-color 0.3s,
+          color 0.3s;
+        &:active {
+          background-color: var(--hover);
+        }
+      }
+    }
+  }
+  .title-refresh-button {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    h2 {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    button {
+      background-color: var(--background);
+      color: var(--text);
+      border: none;
+      border-radius: 0.3rem;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      &:active {
+        background-color: var(--hover);
       }
     }
   }
   .separator {
     width: 100%;
-    height: 2px;
-    margin-block: 0.5rem;
-    background-color: var(--border);
-  }
-
-  .buttons-wrapper {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-  }
-  .refresh-button {
-    padding: 0.75rem 1.5rem;
-    background-color: var(--background);
-    border: 1px solid var(--border);
-    color: var(--text);
-    margin-block: 1rem;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.1s;
-    &:active {
-      background-color: var(--active);
-    }
-  }
-
-  .register-button {
-    padding: 0.75rem 1.5rem;
-    background-color: var(--background);
-    border: 1px solid var(--border);
-    color: var(--text);
-    margin-block: 1rem;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.1s;
-    &:active {
-      background-color: var(--active);
-    }
-  }
-
-  .registration-form {
-    position: fixed;
-    inset: 0;
-    backdrop-filter: blur(2px);
-    width: 100vw;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 10;
-  }
-  .form-wrapper {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    gap: 1.5rem;
-    background-color: var(--background-dark);
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    padding: 4rem;
-    position: relative;
-    & h2 {
-      font-weight: bold;
-    }
-  }
-
-  .registration-form input {
-    padding: 1rem;
-    background-color: var(--background);
-    font-size: 0.8rem;
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    font-size: 1rem;
-    &::placeholder {
-      font-size: 0.7rem;
-    }
-  }
-
-  .submit {
-    padding: 0.75rem 1.5rem;
-    background: var(--background);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 0.5rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    &:active {
-      background-color: var(--active);
-    }
-  }
-
-  .close-registration-button {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    padding: 0.5rem;
-    background-color: var(--secondary);
-    border-radius: 5px;
-    transition:
-      background-color 0.2s,
-      transform 0.2s;
-    &:active {
-      transform: translate(4px, 5px);
-      background-color: var(--accent);
-    }
-  }
-
-  header {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    gap: 1rem;
-  }
-  .title-register-button {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
+    border-bottom: 1px solid var(--border);
+    margin: 1rem 0;
   }
 </style>

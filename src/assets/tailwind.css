@@ -12,7 +12,8 @@ input {
     --text-dark: rgba(0, 0, 0, 0.8);
     --text-hover: rgba(50, 50, 50, 1);
     --background: rgba(20, 8, 50, 0.3);
-    --background-dark: rgba(20, 8, 50, 0.9);
+    --background-dark: rgba(20, 8, 50, 0.6);
+    --background-2: rgba(255, 255, 217, 0.5);
     --primary: #a7dbd8;
     --secondary: #ff7a5c;
     --accent: #bafca2;
@@ -20,7 +21,7 @@ input {
     --active: rgba(168, 168, 168, 0.6); /* #a8a8a8 */
     --border: rgba(255, 255, 255, 0.4); /* #a8a8a8 */
     --shadow: 0 8px 25px 0 rgba(76, 74, 107, 0.37);
-    --hover: rgba(255, 255, 255, 0.7); /* #a8a8a8 */
+    --hover: rgba(255, 255, 255, 0.4); /* #a8a8a8 */
   }
 }
 

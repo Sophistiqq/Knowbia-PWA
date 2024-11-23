@@ -29,11 +29,17 @@ const createUserStore = () => {
       section: '',
     }),
     isLoggedIn: () => {
-      let currentUser: UserData;
+      let currentUser: UserData = {
+        studentNumber: '',
+        email: '',
+        firstName: '',
+        lastName: '',
+        section: '',
+      };
       subscribe(user => {
         currentUser = user;
       })();
-      return Boolean(currentUser?.studentNumber);
+      return Boolean(currentUser.studentNumber);
     }
   };
 };
