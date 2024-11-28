@@ -339,9 +339,9 @@
 
 {#if !isLoggedIn}
   <div class="login-container">
-    <div class="login-form">
+    <div class="login-form" >
       <h1 class="login-title">Knowbia Login</h1>
-      <div class="form-wrapper">
+      <div class="form-wrapper" transition:slide={{ duration: 500, easing: cubicInOut }}>
         <input
           type="text"
           bind:value={loginStudentNumber}
@@ -363,7 +363,7 @@
     </div>
   </div>
 {:else if currentPage === "frontpage"}
-  <div class="container" transition:slide={{ easing: cubicInOut }}>
+  <div class="container" transition:slide={{ duration: 500, easing: cubicInOut }}>
     <header>
       <h1 class="text-xl text-center title">Assessment Client</h1>
     </header>
@@ -412,8 +412,8 @@
 {/if}
 
 {#if showRegisterForm}
-  <div class="registration-form">
-    <div class="form-wrapper reg-wrapper">
+  <div class="registration-form" >
+    <div class="form-wrapper reg-wrapper" transition:slide={{ duration: 500, easing: cubicInOut }}>
       <button
         class="close-registration-button"
         on:click={() => (showRegisterForm = false)}
