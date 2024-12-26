@@ -2,6 +2,39 @@
   import { onMount, onDestroy } from "svelte";
   import { CloseCircleSolid } from "flowbite-svelte-icons";
 
+  let assessmentData: {
+    title: string;
+    description: string;
+    time_limit: number;
+    section: string;
+    shuffle_questions: boolean;
+    questions: Question[];
+  };
+
+  type Question = {
+    id: number;
+    question: string;
+    type:
+      | "multiple_choice"
+      | "short_answer"
+      | "true_false"
+      | "ranking"
+      | "essay"
+      | "linear_scale";
+    options?: string[];
+    correctAnswers?: any[];
+    required: boolean;
+    points: number;
+    shuffleOptions: boolean;
+    category?: string;
+    hint?: string;
+    media?: string | null;
+    showMediaUpload?: boolean;
+    // Linear Scale specific properties
+    linearScaleStart?: number;
+    linearScaleEnd?: number;
+    linearScaleStep?: number;
+  };
   // declare the userInfo from localStorage and store it in a variable
   let userInfo = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
 
@@ -64,23 +97,6 @@
 
   export let changePage: (page: string) => void;
   export let showToast: (message: string, type: "success" | "error") => void;
-
-  export let assessmentData: {
-    id: number;
-    title: string;
-    description: string;
-    timeLimit: number;
-    questions: Array<{
-      id: number;
-      type: string;
-      content: string;
-      required: boolean;
-      answer: string | null;
-      options: string[];
-      correctAnswers: number[];
-      correctAnswer?: number;
-    }>;
-  };
 
   let answers: (string | number | null | number[])[] = new Array(
     assessmentData.questions.length,

@@ -16,18 +16,15 @@
   import AssessmentsPage from "./pages/AssessmentsPage.svelte";
 
   let receivedAssessments: any[] = [];
-  let serverUrl =
-    window.location.protocol === "https:"
-      ? "https://server-knowbia.vercel.app/distribution"
-      : `http://${window.location.hostname}:3000/distribution`;
+  let serverUrl = `http://${window.location.hostname}:3000`;
 
   // User state management
   let isLoggedIn = false;
   let loggedInUser = {
-    studentNumber: "",
+    student_number: "",
     email: "",
-    firstName: "",
-    lastName: "",
+    first_name: "",
+    last_name: "",
     section: "",
   };
 
@@ -38,48 +35,53 @@
 
   // Registration form state
   let showRegisterForm = false;
-  let studentNumber = "";
+  let student_number = "";
   let email = "";
   let password = "";
-  let firstName = "";
-  let lastName = "";
+  let first_name = "";
+  let last_name = "";
   let section = "";
   let confirmPassword = "";
   let registrationFeedback = "";
 
-  let assessmentData: {
-    id: number;
+  export let assessmentData: {
     title: string;
     description: string;
-    questions: Array<{
-      id: number;
-      type: string;
-      content: string;
-      required: boolean;
-      answer: string;
-      options: string[];
-      correctAnswers: number[];
-      correctAnswer?: number;
-    }>;
-    timeLimit: number;
+    time_limit: number;
+    section: string;
+    shuffle_questions: boolean;
+    questions: Question[];
   };
 
+  type Question = {
+    id: number;
+    question: string;
+    type:
+      | "multiple_choice"
+      | "short_answer"
+      | "true_false"
+      | "ranking"
+      | "essay"
+      | "linear_scale";
+    options?: string[];
+    correctAnswers?: any[];
+    required: boolean;
+    points: number;
+    shuffleOptions: boolean;
+    category?: string;
+    hint?: string;
+    media?: string | null;
+    showMediaUpload?: boolean;
+    // Linear Scale specific properties
+    linearScaleStart?: number;
+    linearScaleEnd?: number;
+    linearScaleStep?: number;
+  };
   // Fetch active assessments periodically
   async function fetchActiveAssessments() {
-    try {
-      const response = await fetch(`${serverUrl}/assessments`);
-      const data = await response.json();
-      if (data.success) {
-        receivedAssessments = data.assessments;
-        if (data.assessments.length > 0) {
-          assessmentData = data.assessments[0];
-          showToast("Active assessments received!", "success");
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching assessments:", error);
-      showToast("Failed to fetch assessments", "error");
-    }
+    const res = await fetch(`${serverUrl}/assessments/ongoing`);
+    const data = await res.json();
+    receivedAssessments = data;
   }
 
   async function submitLogin() {
@@ -92,7 +94,7 @@
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          studentNumber: loginStudentNumber,
+          student_number: loginStudentNumber,
           password: loginPassword,
         }),
       });
@@ -109,26 +111,27 @@
     if (!validateRegistration()) return;
 
     try {
-      const response = await fetch(`${serverUrl}/register`, {
+      const res = await fetch(`${serverUrl}/students/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          studentNumber,
+          student_number,
           email,
           password,
-          firstName,
-          lastName,
+          first_name,
+          last_name,
           section,
         }),
       });
 
-      const data = await response.json();
-      handleRegistrationResponse(data);
-      if (data.success) {
+      const data = await res.json();
+      if (data.status === "success") {
         resetRegistrationForm();
       }
+      registrationFeedback = data.message;
+      showToast(registrationFeedback, data.status);
     } catch (error) {
       console.error("Registration error:", error);
       showToast("Registration failed", "error");
@@ -139,10 +142,10 @@
     success: boolean;
     message: string;
     data?: {
-      studentNumber: string;
+      student_number: string;
       email: string;
-      firstName: string;
-      lastName: string;
+      first_name: string;
+      last_name: string;
       section: string;
     };
   }) {
@@ -159,22 +162,12 @@
     }
   }
 
-  function handleRegistrationResponse(data: {
-    success: boolean;
-    message: string;
-  }) {
-    registrationFeedback = data.success
-      ? "Registration successful!"
-      : `Registration failed: ${data.message}`;
-    showToast(registrationFeedback, data.success ? "success" : "error");
-  }
-
   function saveUserData(data: Partial<typeof loggedInUser>) {
     const defaultUserData = {
-      studentNumber: "",
+      student_number: "",
       email: "",
-      firstName: "",
-      lastName: "",
+      first_name: "",
+      last_name: "",
       section: "",
     };
 
@@ -192,16 +185,27 @@
   }
 
   function validateRegistration(): boolean {
-    if (
-      !studentNumber ||
-      !email ||
-      !password ||
-      !confirmPassword ||
-      !firstName ||
-      !lastName ||
-      !section
-    ) {
-      registrationFeedback = "All fields are required.";
+    const requiredFields = [
+      { value: student_number, message: "All fields are required." },
+      { value: email, message: "All fields are required." },
+      { value: password, message: "All fields are required." },
+      { value: confirmPassword, message: "All fields are required." },
+      { value: first_name, message: "All fields are required." },
+      { value: last_name, message: "All fields are required." },
+      { value: section, message: "All fields are required." },
+    ];
+
+    for (const field of requiredFields) {
+      if (!field.value) {
+        registrationFeedback = field.message;
+        showToast(registrationFeedback, "error");
+        return false;
+      }
+    }
+
+    const student_numberRegex = /^\d{2}-\d{5}$/;
+    if (!student_numberRegex.test(student_number)) {
+      registrationFeedback = "Invalid Student Number Format.";
       showToast(registrationFeedback, "error");
       return false;
     }
@@ -234,11 +238,11 @@
   }
 
   function resetRegistrationForm() {
-    studentNumber = "";
+    student_number = "";
     email = "";
     password = "";
-    firstName = "";
-    lastName = "";
+    first_name = "";
+    last_name = "";
     section = "";
     confirmPassword = "";
     showRegisterForm = false;
@@ -250,14 +254,14 @@
   }
 
   // Check if the student has already taken the assessment and also if they are restricted from taking it again, or also they are restricted because of violations
-  function checkAssessmentStatus(assessmentId: number): Promise<boolean> {
+  async function checkAssessmentStatus(assessmentId: number): Promise<boolean> {
     return fetch(`${serverUrl}/status/${assessmentId}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        studentNumber: loggedInUser.studentNumber,
+        student_number: loggedInUser.student_number,
       }),
     })
       .then((response) => response.json())
@@ -324,10 +328,10 @@
   function logout() {
     isLoggedIn = false;
     loggedInUser = {
-      studentNumber: "",
+      student_number: "",
       email: "",
-      firstName: "",
-      lastName: "",
+      first_name: "",
+      last_name: "",
       section: "",
     };
     localStorage.removeItem("loggedInUser");
@@ -339,9 +343,12 @@
 
 {#if !isLoggedIn}
   <div class="login-container">
-    <div class="login-form" >
+    <div class="login-form">
       <h1 class="login-title">Knowbia Login</h1>
-      <div class="form-wrapper" transition:slide={{ duration: 500, easing: cubicInOut }}>
+      <div
+        class="form-wrapper"
+        transition:slide={{ duration: 500, easing: cubicInOut }}
+      >
         <input
           type="text"
           bind:value={loginStudentNumber}
@@ -363,7 +370,10 @@
     </div>
   </div>
 {:else if currentPage === "frontpage"}
-  <div class="container" transition:slide={{ duration: 500, easing: cubicInOut }}>
+  <div
+    class="container"
+    transition:slide={{ duration: 500, easing: cubicInOut }}
+  >
     <header>
       <h1 class="text-xl text-center title">Assessment Client</h1>
     </header>
@@ -376,7 +386,7 @@
     {#if menu}
       <div class="menu" transition:fly={{ easing: cubicInOut }}>
         <div class="user-info">
-          <p>{loggedInUser.firstName} {loggedInUser.lastName}</p>
+          <p>{loggedInUser.first_name} {loggedInUser.last_name}</p>
         </div>
         <button on:click={logout}>Logout</button>
       </div>
@@ -391,9 +401,9 @@
           </button>
         </div>
 
-        {#each receivedAssessments as assessment (assessment.title)}
+        {#each receivedAssessments as assessment}
           <div class="assessment-section">
-            <h3>{assessment.title}</h3>
+            <h2>{assessment.title}</h2>
             <div class="separator"></div>
             <p>{@html assessment.description}</p>
             <div class="separator"></div>
@@ -407,13 +417,18 @@
       </div>
     {/if}
   </div>
+  <!-- Assessments Page 
 {:else if currentPage === "assessment"}
   <AssessmentsPage {assessmentData} {changePage} {showToast} />
+-->
 {/if}
 
 {#if showRegisterForm}
-  <div class="registration-form" >
-    <div class="form-wrapper reg-wrapper" transition:slide={{ duration: 500, easing: cubicInOut }}>
+  <div class="registration-form">
+    <div
+      class="form-wrapper reg-wrapper"
+      transition:slide={{ duration: 500, easing: cubicInOut }}
+    >
       <button
         class="close-registration-button"
         on:click={() => (showRegisterForm = false)}
@@ -423,7 +438,7 @@
       <h2>Student Registration</h2>
       <input
         type="text"
-        bind:value={studentNumber}
+        bind:value={student_number}
         placeholder="Student Number"
       />
       <input type="email" bind:value={email} placeholder="Email" />
@@ -433,8 +448,8 @@
         bind:value={confirmPassword}
         placeholder="Confirm Password"
       />
-      <input type="text" bind:value={firstName} placeholder="First Name" />
-      <input type="text" bind:value={lastName} placeholder="Last Name" />
+      <input type="text" bind:value={first_name} placeholder="First Name" />
+      <input type="text" bind:value={last_name} placeholder="Last Name" />
       <input type="text" bind:value={section} placeholder="Section" />
       <button class="submit" on:click={submitRegistration}>Submit</button>
     </div>
@@ -689,6 +704,10 @@
       border-radius: 0.3rem;
       background-color: var(--background);
       backdrop-filter: blur(5px);
+      h2 {
+        font-size: 1.2rem;
+        font-weight: bold;
+      }
       p {
         margin: 0.5rem 0;
       }
