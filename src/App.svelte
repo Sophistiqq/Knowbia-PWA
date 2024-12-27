@@ -45,6 +45,7 @@
   let registrationFeedback = "";
 
   export let assessmentData: {
+    id: number;
     title: string;
     description: string;
     time_limit: number;
@@ -82,29 +83,29 @@
     const res = await fetch(`${serverUrl}/assessments/ongoing`);
     const data = await res.json();
     receivedAssessments = data;
+    console.log("Received assessments:", receivedAssessments);
   }
 
   async function submitLogin() {
     if (!validateLogin()) return;
+    const res = await fetch(`${serverUrl}/students/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        student_number: loginStudentNumber,
+        password: loginPassword,
+      }),
+    });
+    const data = await res.json();
 
-    try {
-      const response = await fetch(`${serverUrl}/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          student_number: loginStudentNumber,
-          password: loginPassword,
-        }),
-      });
-
-      const data = await response.json();
-      handleLoginResponse(data);
-    } catch (error) {
-      console.error("Login error:", error);
-      showToast("Login failed", "error");
+    if (data.status === "success") {
+      isLoggedIn = true;
+      saveUserData(data.student_data);
+      clearLoginForm();
     }
+    showToast(data.message, data.status);
   }
 
   async function submitRegistration() {
@@ -135,30 +136,6 @@
     } catch (error) {
       console.error("Registration error:", error);
       showToast("Registration failed", "error");
-    }
-  }
-
-  function handleLoginResponse(message: {
-    success: boolean;
-    message: string;
-    data?: {
-      student_number: string;
-      email: string;
-      first_name: string;
-      last_name: string;
-      section: string;
-    };
-  }) {
-    if (message.success && message.data) {
-      loggedInUser = message.data;
-      console.log("Logged in user:", loggedInUser);
-      isLoggedIn = true;
-      localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
-      showToast("Login successful!", "success");
-      clearLoginForm();
-    } else {
-      loginFeedback = `Login failed: ${message.message}`;
-      showToast(loginFeedback, "error");
     }
   }
 
@@ -255,48 +232,32 @@
 
   // Check if the student has already taken the assessment and also if they are restricted from taking it again, or also they are restricted because of violations
   async function checkAssessmentStatus(assessmentId: number): Promise<boolean> {
-    return fetch(`${serverUrl}/status/${assessmentId}`, {
+    const res = await fetch(`http://localhost:3000/students/eligibility`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         student_number: loggedInUser.student_number,
+        assessment_id: assessmentId,
       }),
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        console.log("Assessment status:", data);
-        if (data.success) {
-          return true;
-        }
-        if (data.message === "You have already taken this assessment.") {
-          showToast("You have already taken this assessment", "error");
-        } else if (
-          data.message === "You are restricted from taking assessments"
-        ) {
-          showToast(
-            "You have been restricted from taking assessments",
-            "error",
-          );
-        }
-        return false;
-      })
-      .catch((error) => {
-        console.error("Error checking assessment status:", error);
-        return false;
-      });
+    });
+    const data = await res.json();
+    if (data.status === "success") {
+      return true;
+    } else {
+      showToast(data.message, "error");
+      return false;
+    }
   }
 
   async function startAssessment(assessment: any) {
-    const isEligible = await checkAssessmentStatus(assessment.id);
-    if (!isEligible) {
-      return;
-    }
-    console.log("Starting assessment:", assessment);
+    const canStart = await checkAssessmentStatus(assessment.id);
+    if (!canStart) return;
     changePage("assessment");
     if (assessment) {
       assessmentData = { ...assessment };
+      console.log("Assessment data:", assessmentData);
     } else {
       showToast("No Assessment available to start...", "error");
     }
@@ -404,10 +365,8 @@
         {#each receivedAssessments as assessment}
           <div class="assessment-section">
             <h2>{assessment.title}</h2>
-            <div class="separator"></div>
             <p>{@html assessment.description}</p>
-            <div class="separator"></div>
-            <p>Time Limit: {assessment.timeLimit} minutes</p>
+            <p>Duration: {assessment.time_limit} minutes</p>
             <div class="separator"></div>
             <button on:click={() => startAssessment(assessment)}>
               Start Assessment
@@ -417,10 +376,8 @@
       </div>
     {/if}
   </div>
-  <!-- Assessments Page 
 {:else if currentPage === "assessment"}
   <AssessmentsPage {assessmentData} {changePage} {showToast} />
--->
 {/if}
 
 {#if showRegisterForm}
@@ -504,7 +461,6 @@
     gap: 1rem;
     padding: 3rem 1rem;
     border: 1px solid var(--border);
-    border-radius: 0.3rem;
     background-color: var(--background);
     backdrop-filter: blur(5px);
   }
@@ -524,7 +480,6 @@
     background-color: var(--background);
     color: var(--text);
     border: none;
-    border-radius: 0.3rem;
     border: 1px solid var(--border);
     cursor: pointer;
     transition:
@@ -538,7 +493,6 @@
     padding: 0.5rem 1rem;
     border: 1px solid var(--border);
     background-color: var(--background);
-    border-radius: 0.3rem;
     &::placeholder {
       font-size: 0.75rem;
     }
@@ -569,7 +523,6 @@
     gap: 1.5rem;
     padding: 4rem;
     border: 1px solid var(--border);
-    border-radius: 0.3rem;
     background-color: var(--background);
     backdrop-filter: blur(25px);
     position: relative;
@@ -583,7 +536,6 @@
     cursor: pointer;
     color: var(--text);
     transition: color 0.3s;
-    border-radius: 0.3rem;
     border: 1px solid var(--border);
     padding: 0.5rem;
     &:active {
@@ -600,7 +552,6 @@
     font-size: 0.9rem;
     border: 1px solid var(--border);
     background-color: var(--background);
-    border-radius: 0.3rem;
     &::placeholder {
       font-size: 0.75rem;
     }
@@ -610,7 +561,6 @@
     background-color: var(--background);
     color: var(--text);
     border: none;
-    border-radius: 0.3rem;
     border: 1px solid var(--border);
     cursor: pointer;
     margin-top: 1rem;
@@ -637,7 +587,6 @@
     button {
       color: var(--text);
       border: none;
-      border-radius: 0.3rem;
       padding: 0.5rem;
       cursor: pointer;
       transition: background-color 0.3s;
@@ -689,7 +638,6 @@
         background-color: var(--background);
         color: var(--text);
         border: none;
-        border-radius: 0.3rem;
         padding: 0.5rem;
         cursor: pointer;
         transition: background-color 0.3s;
@@ -701,7 +649,6 @@
     .assessment-section {
       padding: 1rem;
       border: 1px solid var(--border);
-      border-radius: 0.3rem;
       background-color: var(--background);
       backdrop-filter: blur(5px);
       h2 {
@@ -716,7 +663,6 @@
         color: var(--text);
         border: none;
         width: 100%;
-        border-radius: 0.3rem;
         cursor: pointer;
         transition:
           background-color 0.3s,
@@ -740,7 +686,6 @@
       background-color: var(--background);
       color: var(--text);
       border: none;
-      border-radius: 0.3rem;
       padding: 0.5rem;
       cursor: pointer;
       transition: background-color 0.3s;

@@ -2,7 +2,8 @@
   import { onMount, onDestroy } from "svelte";
   import { CloseCircleSolid } from "flowbite-svelte-icons";
 
-  let assessmentData: {
+  export let assessmentData: {
+    id: number;
     title: string;
     description: string;
     time_limit: number;
@@ -30,55 +31,64 @@
     hint?: string;
     media?: string | null;
     showMediaUpload?: boolean;
-    // Linear Scale specific properties
     linearScaleStart?: number;
     linearScaleEnd?: number;
     linearScaleStep?: number;
   };
-  // declare the userInfo from localStorage and store it in a variable
+
+  type Answer = any;
+
+  // User info and session management
   let userInfo = JSON.parse(localStorage.getItem("loggedInUser") || "{}");
+  let host = window.location.hostname;
+  let startTime: Date | null = null;
 
-  function logout() {
-    console.log("Logging out...");
-    showToast("Logged out successfully", "success");
-    changePage("frontpage");
-  }
+  // Assessment state
+  let answers: Answer[] = new Array(assessmentData.questions.length).fill(null);
+  let questionRefs: HTMLElement[] = [];
+  let submitPopup = false;
+  let showLogoutModal = false;
 
+  // Anti-cheating measures
   let warningMessage = "";
   let minimizationCount = 0;
   const maxMinimizations = 3;
-  let host = window.location.hostname;
-  const sendActivityToServer = (activity: string, user: any) => {
-    fetch(`http://${host}:3000/assessments/detected`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activity, user }),
-    })
-      .then((response) => response.json())
-      .catch((error) => console.error("Error sending activity:", error));
-  };
 
+  // Props
+  export let changePage: (page: string) => void;
+  export let showToast: (message: string, type: "success" | "error") => void;
+
+  // Initialize assessment
   onMount(() => {
+    startTime = new Date();
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    console.log(userInfo);
+    console.log("Assessment started for user:", userInfo);
   });
 
+  onDestroy(() => {
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  });
+
+  // Anti-cheating functionality
   const handleVisibilityChange = () => {
     if (document.hidden) {
-      console.log("User pressed Home or switched apps");
       minimizationCount++;
-      sendActivityToServer("home_or_recent_apps_pressed", userInfo);
-
       if (minimizationCount >= maxMinimizations) {
-        warningMessage =
-          "You have exceeded the maximum number of app minimizations allowed for this assessment. Your account has been locked out.";
-        showToast(warningMessage, "error");
-        sendRestrictionToServer();
-        setTimeout(() => {
-          logout();
-        }, 2000);
+        fetch(`http://${host}:3000/students/detected`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            assessment_id: assessmentData.id,
+            student_number: userInfo.student_number,
+            activity: "minimized",
+          }),
+        });
+        console.log(userInfo.student_number);
+        setTimeout(logout, 4000);
       } else {
-        warningMessage = `Please don't minimize the app during the assessment! You have ${maxMinimizations - minimizationCount} remaining.`;
+        warningMessage = `Warning: Don't minimize the app! ${maxMinimizations - minimizationCount} attempts remaining.`;
         showToast(warningMessage, "error");
       }
     } else {
@@ -86,41 +96,75 @@
     }
   };
 
-  function sendRestrictionToServer() {
-    console.log(userInfo);
-    sendActivityToServer("restrictUser", userInfo);
+  // Answer handling
+  function handleAnswerChange(index: number, value: Answer) {
+    answers[index] = value;
+    answers = [...answers]; // Trigger Svelte reactivity
   }
 
-  onDestroy(() => {
-    document.removeEventListener("visibilitychange", handleVisibilityChange);
-  });
+  function handleRankingChange(
+    index: number,
+    oldIndex: number,
+    newIndex: number,
+  ) {
+    const currentAnswer =
+      (answers[index] as number[]) ||
+      Array.from(
+        { length: assessmentData.questions[index].options?.length || 0 },
+        (_, i) => i,
+      );
 
-  export let changePage: (page: string) => void;
-  export let showToast: (message: string, type: "success" | "error") => void;
+    const updated = [...currentAnswer];
+    const [moved] = updated.splice(oldIndex, 1);
+    updated.splice(newIndex, 0, moved);
 
-  let answers: (string | number | null | number[])[] = new Array(
-    assessmentData.questions.length,
-  ).fill(null);
-
-  let questionRefs: HTMLElement[] = [];
-
-  function handleCheckboxChange(index: number, value: number) {
-    if (!Array.isArray(answers[index])) {
-      answers[index] = [];
-    }
-
-    const selected = answers[index] as number[];
-
-    if (selected.includes(value)) {
-      selected.splice(selected.indexOf(value), 1);
-    } else {
-      selected.push(value);
-    }
-
-    answers[index] = selected;
+    handleAnswerChange(index, updated);
   }
 
-  let submitPopup = false;
+  // Validation
+  function validateRequiredFields(): number[] {
+    return assessmentData.questions.reduce(
+      (invalid: number[], question, index) => {
+        if (!question.required) return invalid;
+
+        const answer = answers[index];
+        let isValid = false;
+
+        switch (question.type) {
+          case "short_answer":
+          case "essay":
+            isValid = typeof answer === "string" && answer.trim() !== "";
+            break;
+          case "multiple_choice":
+          case "true_false":
+          case "linear_scale":
+            isValid = answer !== null && answer !== undefined;
+            break;
+          case "ranking":
+            isValid =
+              Array.isArray(answer) &&
+              answer.length === question.options?.length &&
+              answer.every((val) => typeof val === "number");
+            break;
+        }
+
+        if (!isValid) invalid.push(index);
+        return invalid;
+      },
+      [],
+    );
+  }
+
+  function focusFirstInvalidQuestion(index: number) {
+    const element = questionRefs[index];
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      const input = element.querySelector("input, select, textarea");
+      if (input) (input as HTMLElement).focus();
+    }
+  }
+
+  // Submission handling
   function submitPopupToggle() {
     const invalidQuestions = validateRequiredFields();
     if (invalidQuestions.length > 0) {
@@ -131,146 +175,91 @@
     submitPopup = !submitPopup;
   }
 
-  function validateRequiredFields(): number[] {
-    const invalidQuestions: number[] = [];
-
-    assessmentData.questions.forEach((question, index) => {
-      if (!question.required) return;
-
-      const answer = answers[index];
-      let isValid = false;
-
-      switch (question.type) {
-        case "Short Answer":
-        case "Paragraph":
-        case "Date":
-        case "Time":
-          isValid = answer !== null && answer !== "";
-          break;
-
-        case "Multiple Choice":
-        case "Dropdown":
-          isValid = typeof answer === "number";
-          break;
-
-        case "Checkboxes":
-          isValid = Array.isArray(answer) && answer.length > 0;
-          break;
-      }
-
-      if (!isValid) {
-        invalidQuestions.push(index);
-      }
-    });
-
-    return invalidQuestions;
-  }
-
-  function focusFirstInvalidQuestion(index: number) {
-    if (questionRefs[index]) {
-      questionRefs[index].scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-      const firstInput = questionRefs[index].querySelector(
-        "input, select, textarea",
-      );
-      if (firstInput) {
-        (firstInput as HTMLElement).focus();
-      }
-    }
-  }
-
   async function submitAnswers() {
+    // Validate answers
     const invalidQuestions = validateRequiredFields();
     if (invalidQuestions.length > 0) {
       showToast("Please answer all required questions", "error");
       focusFirstInvalidQuestion(invalidQuestions[0]);
-      submitPopup = false;
       return;
     }
-    let score = 0;
 
-    assessmentData.questions.forEach((question, index) => {
-      if (!question.required) {
-        return;
-      }
+    // Calculate time taken
+    const endTime = new Date();
+    const timeTaken = Math.round(
+      (endTime.getTime() - startTime!.getTime()) / 1000,
+    );
+    let mistakes: any = [];
+    // Calculate score
+    const totalPoints = assessmentData.questions.reduce(
+      (total, question, index) => {
+        if (question.correctAnswers) {
+          const correctAnswers = question.correctAnswers;
+          const answer = answers[index];
+          let points = 0;
 
-      const answer = answers[index];
-
-      switch (question.type) {
-        case "Short Answer":
-        case "Paragraph":
-        case "Date":
-        case "Time":
-          if (answer === question.answer) {
-            score++;
+          switch (question.type) {
+            case "short_answer":
+            case "essay":
+              points = correctAnswers.includes(answer) ? question.points : 0;
+              break;
+            case "multiple_choice":
+              points = correctAnswers.includes(answer) ? question.points : 0;
+              break;
+            case "true_false":
+              points = correctAnswers.includes(String(answer))
+                ? question.points
+                : 0;
+              break;
           }
-          break;
 
-        case "Multiple Choice":
-        case "Dropdown":
-          if (typeof answer === "number" && answer === question.correctAnswer) {
-            score++;
+          if (points === 0) {
+            mistakes.push({
+              question: question.question,
+              answer,
+              correctAnswers,
+            });
           }
-          break;
 
-        case "Checkboxes":
-          const selectedAnswers = answer as number[];
-          if (
-            Array.isArray(selectedAnswers) &&
-            Array.isArray(question.correctAnswers)
-          ) {
-            const isCorrect =
-              selectedAnswers.length === question.correctAnswers.length &&
-              selectedAnswers.every((ans) =>
-                question.correctAnswers.includes(ans),
-              ) &&
-              question.correctAnswers.every((ans) =>
-                selectedAnswers.includes(ans),
-              );
+          return total + points;
+        }
 
-            if (isCorrect) {
-              score++;
-            }
-          }
-          break;
-      }
-    });
-
-    const resultData = {
-      type: "studentResult",
-      result: {
-        studentNumber: userInfo.studentNumber,
-        assessmentId: assessmentData.id,
-        score: score,
-        answers: answers,
+        return total;
       },
-    };
-    console.log("Submitting answers:", resultData);
+      0,
+    );
 
-    try {
-      const response = await fetch(`http://${host}:3000/distribution/results`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(resultData),
-      });
-      const data = await response.json();
-      if (data.success === false) {
-        showToast(data.message, "error");
-        return;
-      }
-      submitPopupToggle();
-      showToast(data.message, "success");
+    // declare variables
+    let resultData = {
+      student_number: userInfo.student_number,
+      assessment: assessmentData,
+      answers: answers,
+      timeTaken: timeTaken,
+      totalPoints: totalPoints,
+      mistakes: mistakes,
+    };
+    console.table(resultData.answers);
+    console.table(assessmentData.questions);
+
+    const res = await fetch(`http://${host}:3000/students/submit`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(resultData),
+    });
+    const data = await res.json();
+    if (data.status === "success") {
       changePage("frontpage");
-      answers = new Array(assessmentData.questions.length).fill(null);
-    } catch (error) {
-      console.error("Error submitting answers:", error);
-      showToast("Error submitting answers", "error");
     }
+    showToast(data.message, data.status);
   }
 
-  let showLogoutModal = false;
+  // Navigation and UI
+  function logout() {
+    showToast("Logged out successfully", "success");
+    changePage("frontpage");
+  }
 
   function showModal() {
     showLogoutModal = true;
@@ -278,19 +267,19 @@
 </script>
 
 <div class="container">
+  <!-- Header section remains the same -->
   <div class="assessment-descriptions">
-    <button class="self-end logout-btn" on:click={showModal}
-      ><CloseCircleSolid size="xl" class="text-[--secondary] " /></button
-    >
+    <button class="self-end logout-btn" on:click={showModal}>
+      <CloseCircleSolid size="xl" class="text-[--secondary]" />
+    </button>
     <p id="a-title">{assessmentData.title}</p>
     <div class="separator"></div>
     <p id="a-description">{@html assessmentData.description}</p>
     <div class="separator"></div>
     <p class="font-bold">
-      Duration: <span style="color: var(--secondary)">
-        {assessmentData.timeLimit}
-      </span>
-      minutes
+      Duration: <span style="color: var(--secondary)"
+        >{assessmentData.time_limit}</span
+      > minutes
     </p>
   </div>
 </div>
@@ -303,25 +292,19 @@
         class="question-wrapper"
         class:required-unanswered={question.required && !answers[index]}
       >
-        {#if question.type === "Short Answer"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
+        <div class="question-container">
+          <p>{question.question}</p>
+          <p class="required-marker">{question.required ? "*" : ""}</p>
+        </div>
+
+        {#if question.type === "short_answer"}
           <input
             type="text"
             bind:value={answers[index]}
             placeholder="Enter your answer"
           />
-          <div class="separator"></div>
-        {/if}
-
-        {#if question.type === "Multiple Choice"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
-          {#each question.options as option, i}
+        {:else if question.type === "multiple_choice"}
+          {#each question.options || [] as option, i}
             <label>
               <input
                 type="radio"
@@ -332,86 +315,78 @@
               {option}
             </label>
           {/each}
-          <div class="separator"></div>
-        {/if}
-
-        {#if question.type === "Dropdown"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
+        {:else if question.type === "true_false"}
+          <label>
+            <input
+              type="radio"
+              name={String(question.id)}
+              bind:group={answers[index]}
+              value={true}
+            />
+            True
+          </label>
+          <label>
+            <input
+              type="radio"
+              name={String(question.id)}
+              bind:group={answers[index]}
+              value={false}
+            />
+            False
+          </label>
+        {:else if question.type === "ranking"}
+          <!-- Add drag and drop functionality later -->
           <select bind:value={answers[index]}>
-            {#each question.options as option, i}
+            {#each question.options || [] as option, i}
               <option value={i}>{option}</option>
             {/each}
           </select>
-          <div class="separator"></div>
-        {/if}
-
-        {#if question.type === "Checkboxes"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
-          {#each question.options as option, i}
-            <label>
-              <input
-                type="checkbox"
-                name={String(question.id)}
-                value={i}
-                on:change={() => handleCheckboxChange(index, i)}
-              />
-              {option}
-            </label>
-          {/each}
-          <div class="separator"></div>
-        {/if}
-
-        {#if question.type === "Paragraph"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
+        {:else if question.type === "essay"}
           <textarea
             bind:value={answers[index]}
             class="h-40"
             placeholder="Enter your answer"
           ></textarea>
-          <div class="separator"></div>
+        {:else if question.type === "linear_scale"}
+          <div class="linear-scale">
+            {#each Array(((question.linearScaleEnd || 5) - (question.linearScaleStart || 1)) / (question.linearScaleStep || 1) + 1) as _, i}
+              {@const value =
+                (question.linearScaleStart || 1) +
+                i * (question.linearScaleStep || 1)}
+              <label>
+                <input
+                  type="radio"
+                  name={String(question.id)}
+                  bind:group={answers[index]}
+                  {value}
+                />
+                {value}
+              </label>
+            {/each}
+          </div>
         {/if}
 
-        {#if question.type === "Date"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
-          <input type="date" bind:value={answers[index]} />
-          <div class="separator"></div>
+        {#if question.hint}
+          <p class="hint">{question.hint}</p>
         {/if}
 
-        {#if question.type === "Time"}
-          <div class="question-container">
-            <p>{question.content}</p>
-            <p class="required-marker">{question.required ? "*" : ""}</p>
-          </div>
-          <input type="time" bind:value={answers[index]} />
-          <div class="separator"></div>
-        {/if}
+        <div class="separator"></div>
       </div>
     {/each}
   </div>
   <button on:click={submitPopupToggle} id="submit-button">Submit</button>
 </div>
 
+<!-- Modals remain the same -->
 {#if showLogoutModal}
   <div class="modal-container">
     <div class="modal">
       <p>Are you sure you want to log out?</p>
       <div class="modal-buttons">
         <button class="modal-button" on:click={logout}>Yes</button>
-        <button class="modal-button" on:click={() => (showLogoutModal = false)}>
-          No
-        </button>
+        <button class="modal-button" on:click={() => (showLogoutModal = false)}
+          >No</button
+        >
       </div>
     </div>
   </div>
@@ -429,7 +404,7 @@
   </div>
 {/if}
 
-<style>
+<style lang="scss">
   .container {
     display: flex;
     flex-direction: column;
@@ -444,13 +419,12 @@
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
-    background-color: var(--background);
+    background-color: var (--background);
     backdrop-filter: blur(15px);
     box-shadow: var(--shadow);
     padding: 1.5rem;
     width: 100%;
     margin-top: 1rem;
-    border-radius: 0.5rem;
 
     & #a-title {
       font-size: 1.5rem;
@@ -480,19 +454,15 @@
     color: var(--text);
   }
   input[type="text"],
-  input[type="date"],
-  input[type="time"],
   select,
   textarea {
     width: 100%;
     padding: 0.5rem;
     border: 1px solid var(--border);
-    border-radius: 0.5rem;
     background-color: var(--background);
     backdrop-filter: blur(20px);
   }
-  input[type="radio"],
-  input[type="checkbox"] {
+  input[type="radio"] {
     border: 1px solid var(--border);
     margin-right: 1rem;
     background-color: var(--background);
@@ -505,7 +475,6 @@
     align-self: center;
     padding: 1rem 2rem;
     border: 1px solid var(--border);
-    border-radius: 0.5rem;
     color: var(--text);
     background-color: var(--background);
     cursor: pointer;
@@ -554,7 +523,6 @@
       border: 1px solid var(--border);
       background-color: var(--background-dark);
       box-shadow: var(--shadow);
-      border-radius: 0.5rem;
       & p {
         font-size: 1rem;
       }
@@ -569,7 +537,6 @@
       & .modal-button {
         padding: 0.5rem 1rem;
         border: 1px solid var(--border);
-        border-radius: 0.5rem;
         background-color: var(--background);
         cursor: pointer;
         transition:
@@ -590,7 +557,6 @@
     flex-direction: column;
     gap: 0.5rem;
     padding: 1rem;
-    border-radius: 0.5rem;
     transition: background-color 0.5s ease;
     border-bottom: 1px solid var(--secondary);
   }
@@ -602,5 +568,18 @@
   .required-marker {
     color: var(--accent);
     font-weight: bold;
+  }
+  .linear-scale {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+  }
+
+  .hint {
+    font-style: italic;
+    color: #666;
+    margin-top: 0.5rem;
+    font-size: 0.9em;
   }
 </style>
