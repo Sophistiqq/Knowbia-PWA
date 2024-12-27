@@ -82,11 +82,12 @@
           body: JSON.stringify({
             assessment_id: assessmentData.id,
             student_number: userInfo.student_number,
+            student_name: userInfo.first_name + " " + userInfo.last_name,
             activity: "minimized",
           }),
         });
         console.log(userInfo.student_number);
-        setTimeout(logout, 4000);
+        setTimeout(logout, 1500);
       } else {
         warningMessage = `Warning: Don't minimize the app! ${maxMinimizations - minimizationCount} attempts remaining.`;
         showToast(warningMessage, "error");
@@ -95,31 +96,6 @@
       warningMessage = "";
     }
   };
-
-  // Answer handling
-  function handleAnswerChange(index: number, value: Answer) {
-    answers[index] = value;
-    answers = [...answers]; // Trigger Svelte reactivity
-  }
-
-  function handleRankingChange(
-    index: number,
-    oldIndex: number,
-    newIndex: number,
-  ) {
-    const currentAnswer =
-      (answers[index] as number[]) ||
-      Array.from(
-        { length: assessmentData.questions[index].options?.length || 0 },
-        (_, i) => i,
-      );
-
-    const updated = [...currentAnswer];
-    const [moved] = updated.splice(oldIndex, 1);
-    updated.splice(newIndex, 0, moved);
-
-    handleAnswerChange(index, updated);
-  }
 
   // Validation
   function validateRequiredFields(): number[] {
@@ -234,8 +210,8 @@
       student_number: userInfo.student_number,
       assessment: assessmentData,
       answers: answers,
-      timeTaken: timeTaken,
-      totalPoints: totalPoints,
+      time_taken: timeTaken,
+      total_points: totalPoints,
       mistakes: mistakes,
     };
     console.table(resultData.answers);
@@ -559,10 +535,6 @@
     padding: 1rem;
     transition: background-color 0.5s ease;
     border-bottom: 1px solid var(--secondary);
-  }
-
-  .required-unanswered {
-    background-color: rgba(100, 0, 0, 0.1);
   }
 
   .required-marker {

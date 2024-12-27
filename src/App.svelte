@@ -363,15 +363,17 @@
         </div>
 
         {#each receivedAssessments as assessment}
-          <div class="assessment-section">
-            <h2>{assessment.title}</h2>
-            <p>{@html assessment.description}</p>
-            <p>Duration: {assessment.time_limit} minutes</p>
-            <div class="separator"></div>
-            <button on:click={() => startAssessment(assessment)}>
-              Start Assessment
-            </button>
-          </div>
+          {#if assessment.section === loggedInUser.section}
+            <div class="assessment-section">
+              <h2>{assessment.title}</h2>
+              <p>{@html assessment.description}</p>
+              <p>Duration: {assessment.time_limit} minutes</p>
+              <div class="separator"></div>
+              <button on:click={() => startAssessment(assessment)}>
+                Start Assessment
+              </button>
+            </div>
+          {/if}
         {/each}
       </div>
     {/if}
