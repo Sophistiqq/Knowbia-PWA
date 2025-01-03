@@ -231,7 +231,9 @@
   }
 
   // Check if the student has already taken the assessment and also if they are restricted from taking it again, or also they are restricted because of violations
-  async function checkAssessmentStatus(assessmentId: number): Promise<boolean> {
+  async function checkAssessmentStatus(
+    assessment_id: number,
+  ): Promise<boolean> {
     const res = await fetch(`http://localhost:3000/students/eligibility`, {
       method: "POST",
       headers: {
@@ -239,7 +241,7 @@
       },
       body: JSON.stringify({
         student_number: loggedInUser.student_number,
-        assessment_id: assessmentId,
+        assessment_id: assessment_id,
       }),
     });
     const data = await res.json();
