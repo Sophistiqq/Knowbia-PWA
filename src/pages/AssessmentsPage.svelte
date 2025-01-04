@@ -207,6 +207,7 @@
 
     // declare variables
     let resultData = {
+      assessment_id: assessmentData.id,
       student_number: userInfo.student_number,
       assessment: assessmentData,
       answers: answers,
@@ -214,8 +215,9 @@
       total_points: totalPoints,
       mistakes: mistakes,
     };
-    console.table(resultData.answers);
-    console.table(assessmentData.questions);
+    console.log(resultData);
+    //console.table(resultData.answers);
+    //console.table(assessmentData.questions);
 
     const res = await fetch(`http://${host}:3000/students/submit`, {
       method: "POST",

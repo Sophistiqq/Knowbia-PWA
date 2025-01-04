@@ -234,7 +234,7 @@
   async function checkAssessmentStatus(
     assessment_id: number,
   ): Promise<boolean> {
-    const res = await fetch(`http://localhost:3000/students/eligibility`, {
+    const res = await fetch(`${serverUrl}/students/eligibility`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -245,6 +245,7 @@
       }),
     });
     const data = await res.json();
+    console.log("Assessment status:", data);
     if (data.status === "success") {
       return true;
     } else {
@@ -254,14 +255,13 @@
   }
 
   async function startAssessment(assessment: any) {
-    const canStart = await checkAssessmentStatus(assessment.id);
-    if (!canStart) return;
-    changePage("assessment");
-    if (assessment) {
+    const canStart = checkAssessmentStatus(assessment.id);
+    if (assessment && (await canStart)) {
       assessmentData = { ...assessment };
+      changePage("assessment");
       console.log("Assessment data:", assessmentData);
     } else {
-      showToast("No Assessment available to start...", "error");
+      showToast("You are not allowed to take this assessment", "error");
     }
   }
 
