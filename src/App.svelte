@@ -229,7 +229,7 @@
   function changePage(page: string) {
     currentPage = page;
   }
-
+  let message: string;
   // Check if the student has already taken the assessment and also if they are restricted from taking it again, or also they are restricted because of violations
   async function checkAssessmentStatus(
     assessment_id: number,
@@ -245,6 +245,7 @@
       }),
     });
     const data = await res.json();
+    message = data.message;
     console.log("Assessment status:", data);
     if (data.status === "success") {
       return true;
@@ -259,9 +260,8 @@
     if (assessment && (await canStart)) {
       assessmentData = { ...assessment };
       changePage("assessment");
-      console.log("Assessment data:", assessmentData);
     } else {
-      showToast("You are not allowed to take this assessment", "error");
+      showToast(message, "error");
     }
   }
 

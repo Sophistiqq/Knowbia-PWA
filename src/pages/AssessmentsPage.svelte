@@ -299,7 +299,7 @@
               type="radio"
               name={String(question.id)}
               bind:group={answers[index]}
-              value={true}
+              value={"true"}
             />
             True
           </label>
@@ -308,7 +308,7 @@
               type="radio"
               name={String(question.id)}
               bind:group={answers[index]}
-              value={false}
+              value={"false"}
             />
             False
           </label>
