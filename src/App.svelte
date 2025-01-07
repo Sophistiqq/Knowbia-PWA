@@ -288,6 +288,40 @@
     }
   }
 
+  async function submitUpdate() {
+    try {
+      const res = await fetch(`${serverUrl}/students/update`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          student_number: loggedInUser.student_number,
+          email: newEmail || loggedInUser.email,
+          password: newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.status === "success") {
+        loggedInUser.email = newEmail || loggedInUser.email;
+        localStorage.setItem("loggedInUser", JSON.stringify(loggedInUser));
+        resetUpdateForm();
+      }
+      updateFeedback = data.message;
+      showToast(updateFeedback, data.status);
+    } catch (error) {
+      console.error("Update error:", error);
+      showToast("Update failed", "error");
+    }
+  }
+
+  function resetUpdateForm() {
+    newPassword = "";
+    newEmail = "";
+    showModal = false;
+  }
+
   function logout() {
     isLoggedIn = false;
     loggedInUser = {
@@ -302,6 +336,10 @@
   }
 
   let menu = false;
+  let showModal = false;
+  let newPassword = "";
+  let newEmail = "";
+  let updateFeedback = "";
 </script>
 
 {#if !isLoggedIn}
@@ -351,7 +389,33 @@
         <div class="user-info">
           <p>{loggedInUser.first_name} {loggedInUser.last_name}</p>
         </div>
-        <button on:click={logout}>Logout</button>
+        <button on:click={() => (showModal = true)}>Update Info</button>
+        <button id="logout" on:click={logout}>Logout</button>
+      </div>
+    {/if}
+
+    {#if showModal}
+      <div class="modal">
+        <div class="modal-content">
+          <button
+            class="close-modal-button"
+            on:click={() => (showModal = false)}
+          >
+            <CloseOutline size="sm" />
+          </button>
+          <h2>Update Information</h2>
+          <input
+            type="email"
+            bind:value={newEmail}
+            placeholder="New Email (optional)"
+          />
+          <input
+            type="password"
+            bind:value={newPassword}
+            placeholder="New Password"
+          />
+          <button class="submit" on:click={submitUpdate}>Submit</button>
+        </div>
       </div>
     {/if}
 
@@ -610,7 +674,6 @@
     backdrop-filter: blur(15px);
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
     align-items: center;
     z-index: 80;
     padding-top: 10vh;
@@ -702,5 +765,54 @@
     width: 100%;
     border-bottom: 1px solid var(--border);
     margin: 1rem 0;
+  }
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+  }
+  .modal-content {
+    background-color: var(--background);
+    padding: 2rem;
+    border: 1px solid var(--border);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    & h2 {
+      font-weight: bold;
+    }
+    & input {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      background-color: var(--background);
+      &::placeholder {
+        font-size: 0.75rem;
+      }
+    }
+  }
+  .close-modal-button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text);
+    transition: color 0.3s;
+    &:active {
+      color: var(--hover);
+    }
+  }
+  #logout {
+    margin-top: auto;
   }
 </style>
